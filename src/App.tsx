@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, FileUp, Hexagon, LayoutGrid, ListChecks, NotebookPen, Package, Swords, X } from 'lucide-react';
+import { Bot, FileUp, Gauge, Hexagon, ListChecks, Package, Shield, Sparkles, X } from 'lucide-react';
 import type { Character, ProbeRef } from './types';
 import { SheetContext, type SheetContextValue } from './context';
 import { exportAll, exportCharacter, loadState, parseImport, saveState, type StoredState } from './logic/storage';
@@ -7,29 +7,26 @@ import { duplicateCharacter } from './logic/character';
 import { TEMPLATES } from './data/templates';
 import { Header } from './components/Header';
 import { DiceHud } from './components/DiceHud';
-import { VitalsPanel } from './components/VitalsPanel';
+import { CombatVitalsPanel, DeathWoundsPanel, WapPanel } from './components/VitalsPanel';
 import { AttributesPanel } from './components/AttributesPanel';
 import { WeaponsPanel } from './components/WeaponsPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { KnowledgePanel } from './components/KnowledgePanel';
 import { TechniquesPanel } from './components/TechniquesPanel';
-import { CompanionsTab } from './components/tabs/CompanionsTab';
-import { InventoryTab } from './components/tabs/InventoryTab';
-import { NotesTab } from './components/tabs/NotesTab';
+import { CompanionsPanel, CyberwareDeckPanel, SpecialResourcesPanel } from './components/tabs/CompanionsTab';
+import { ArmorPanel, CreditsInventoryPanel } from './components/tabs/InventoryTab';
+import { CampaignNotesPanel, FactionsPanel, TraitsPanel } from './components/tabs/NotesTab';
 import { Btn, cx } from './components/ui';
 
-type RightTab = 'tech' | 'inventar' | 'notizen';
+type MainMenu = 'charakter' | 'fertigkeiten' | 'kampf' | 'techniken' | 'drohnen' | 'inventar';
 
-const RIGHT_TABS: { key: RightTab; label: string; icon: React.ReactNode }[] = [
-  { key: 'tech', label: 'Cyber & Bot', icon: <Bot className="size-3.5 shrink-0" /> },
-  { key: 'inventar', label: 'Inventar & ₡', icon: <Package className="size-3.5 shrink-0" /> },
-  { key: 'notizen', label: 'Notiz & Ruf', icon: <NotebookPen className="size-3.5 shrink-0" /> },
-];
-
-const MOBILE_COLS = [
-  { label: 'Attribute & Waffen', icon: <Swords className="size-4" /> },
-  { label: 'Fertigkeiten', icon: <ListChecks className="size-4" /> },
-  { label: 'Module', icon: <LayoutGrid className="size-4" /> },
+const MENUS: { key: MainMenu; label: string; icon: React.ReactNode }[] = [
+  { key: 'charakter', label: 'Charakter & Stats', icon: <Gauge className="size-4 shrink-0" /> },
+  { key: 'fertigkeiten', label: 'Fertigkeiten & Wissen', icon: <ListChecks className="size-4 shrink-0" /> },
+  { key: 'kampf', label: 'Kampf & Rüstung', icon: <Shield className="size-4 shrink-0" /> },
+  { key: 'techniken', label: 'Techniken & Geist', icon: <Sparkles className="size-4 shrink-0" /> },
+  { key: 'drohnen', label: 'Drohnen & Cyber', icon: <Bot className="size-4 shrink-0" /> },
+  { key: 'inventar', label: 'Inventar & Notizen', icon: <Package className="size-4 shrink-0" /> },
 ];
 
 function TemplatePicker({ onPick, onClose, onImport, firstRun }: { onPick: (key: string) => void; onClose?: () => void; onImport: (f: File) => void; firstRun: boolean }) {
@@ -91,12 +88,10 @@ export default function App() {
   const [state, setState] = useState<StoredState>(() => loadState());
   const [saved, setSaved] = useState(true);
   const [probe, setProbe] = useState<ProbeRef | null>(null);
-  const [rightTab, setRightTab] = useState<RightTab>('tech');
-  const [mobileCol, setMobileCol] = useState(0);
+  const [menu, setMenu] = useState<MainMenu>('charakter');
   const [picker, setPicker] = useState(false);
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null);
 
-  // Persistenz (leicht entprellt)
   useEffect(() => {
     const t = setTimeout(() => setSaved(saveState(state)), 250);
     return () => clearTimeout(t);
@@ -154,49 +149,84 @@ export default function App() {
     );
   }
 
-  const col1 = (
-    <>
-      <AttributesPanel />
-      <VitalsPanel />
-      <WeaponsPanel />
-    </>
-  );
-  const col2 = (
-    <>
-      <SkillsPanel />
-      <KnowledgePanel />
-      <TechniquesPanel />
-    </>
-  );
-  const col3 = (
-    <>
-      <div className="sticky top-0 z-10 -mx-1 flex gap-1 bg-[#0b0e14]/95 px-1 pb-2 backdrop-blur">
-        {RIGHT_TABS.map((t) => (
-          <button
-            type="button"
-            key={t.key}
-            onClick={() => setRightTab(t.key)}
-            title={t.label}
-            className={cx(
-              'flex min-h-11 min-w-0 flex-1 touch-manipulation items-center justify-center gap-1 rounded-md border px-1.5 text-[10px] font-bold uppercase tracking-tight xl:gap-1.5 xl:px-2 xl:text-[11px] xl:tracking-wide',
-              rightTab === t.key ? 'border-amber-500/70 bg-amber-500/15 text-amber-300' : 'border-slate-700 bg-[#151b26] text-slate-400 hover:text-slate-200',
-            )}
-          >
-            {t.icon}
-            <span className="truncate">{t.label}</span>
-          </button>
-        ))}
-      </div>
-      {rightTab === 'tech' && <CompanionsTab />}
-      {rightTab === 'inventar' && <InventoryTab />}
-      {rightTab === 'notizen' && <NotesTab />}
-    </>
-  );
-  const cols = [col1, col2, col3];
+  const renderMenu = () => {
+    switch (menu) {
+      case 'charakter':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-7">
+              <AttributesPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-5">
+              <CombatVitalsPanel />
+            </div>
+          </div>
+        );
+      case 'fertigkeiten':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-7">
+              <SkillsPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-5">
+              <KnowledgePanel />
+            </div>
+          </div>
+        );
+      case 'kampf':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-7">
+              <WeaponsPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-5">
+              <ArmorPanel />
+              <DeathWoundsPanel />
+            </div>
+          </div>
+        );
+      case 'techniken':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-6">
+              <TechniquesPanel />
+              <SpecialResourcesPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-6">
+              <TraitsPanel />
+              <WapPanel />
+            </div>
+          </div>
+        );
+      case 'drohnen':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-6">
+              <CompanionsPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-6">
+              <CyberwareDeckPanel />
+            </div>
+          </div>
+        );
+      case 'inventar':
+        return (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <div className="space-y-3 lg:col-span-6">
+              <CreditsInventoryPanel />
+            </div>
+            <div className="space-y-3 lg:col-span-6">
+              <FactionsPanel />
+              <CampaignNotesPanel />
+            </div>
+          </div>
+        );
+    }
+  };
 
   return (
     <SheetContext.Provider value={ctx}>
-      <div className="flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
+      <div className="flex min-h-dvh flex-col">
         <Header
           characters={state.characters}
           activeId={active.id}
@@ -221,38 +251,40 @@ export default function App() {
           onExport={() => exportCharacter(active)}
           onExportAll={() => exportAll(state.characters)}
           onImport={handleImport}
+          onOpenVitals={() => setMenu('charakter')}
         />
 
-        {/* Würfelpool-HUD: Tablet oben fixiert, Mobil als Bottom-Bar */}
-        <div className="fixed inset-x-0 bottom-0 z-30 max-h-[45vh] overflow-y-auto border-t border-amber-500/40 bg-[#0f141d]/97 shadow-[0_-8px_30px_rgba(0,0,0,0.6)] backdrop-blur lg:static lg:z-auto lg:max-h-none lg:shrink-0 lg:border-t-0 lg:border-b lg:shadow-none">
+        {/* 6 Haupt-Menüs */}
+        <nav aria-label="Hauptmenü" className="sticky top-0 z-20 border-b border-slate-700/70 bg-[#0b0e14]/95 px-3 py-1.5 backdrop-blur">
+          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-6">
+            {MENUS.map((m) => (
+              <button
+                type="button"
+                key={m.key}
+                onClick={() => setMenu(m.key)}
+                className={cx(
+                  'flex min-h-10 min-w-0 touch-manipulation items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-bold tracking-wide transition-colors',
+                  menu === m.key
+                    ? 'border-amber-500/80 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_-4px_rgba(245,158,11,0.5)]'
+                    : 'border-slate-700/70 bg-[#151b26] text-slate-400 hover:border-slate-600 hover:text-slate-200',
+                )}
+              >
+                {m.icon}
+                <span className="truncate">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* Würfelpool-HUD */}
+        <div className="fixed inset-x-0 bottom-0 z-30 max-h-[45vh] overflow-y-auto border-t border-amber-500/40 bg-[#0f141d]/97 shadow-[0_-8px_30px_rgba(0,0,0,0.6)] backdrop-blur lg:static lg:z-auto lg:max-h-none lg:shrink-0 lg:border-t-0 lg:border-b lg:border-slate-800 lg:shadow-none">
           <DiceHud />
         </div>
 
-        {/* Mobile-Spaltenwahl */}
-        <nav className="sticky top-0 z-20 flex gap-1 border-b border-slate-800 bg-[#0b0e14]/95 p-1.5 backdrop-blur lg:hidden">
-          {MOBILE_COLS.map((m, i) => (
-            <button
-              type="button"
-              key={m.label}
-              onClick={() => setMobileCol(i)}
-              className={cx(
-                'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-bold',
-                mobileCol === i ? 'bg-amber-500/15 text-amber-300' : 'text-slate-500',
-              )}
-            >
-              {m.icon} {m.label}
-            </button>
-          ))}
-        </nav>
-
-        <main className="grid flex-1 grid-cols-1 gap-3 p-3 pb-48 lg:min-h-0 lg:grid-cols-12 lg:pb-3">
-          {cols.map((content, i) => (
-            <div key={i} className={cx('scroll-col space-y-3 lg:col-span-4 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1', mobileCol === i ? 'block' : 'hidden lg:block')}>
-              {content}
-            </div>
-          ))}
-        </main>
+        {/* Inhalt des aktiven Menüs */}
+        <main className="mx-auto w-full max-w-[1600px] flex-1 p-3 pb-48 lg:pb-6">{renderMenu()}</main>
       </div>
+
       {picker && (
         <TemplatePicker
           firstRun={false}

@@ -20,12 +20,12 @@ function SkillRow({ s }: { s: Skill }) {
   const hasMods = s.gow !== 0 || s.glkw !== 0 || s.pew !== 0;
 
   return (
-    <div className={cx('rounded-md border', active ? 'focus-ring border-amber-500/60 bg-amber-500/5' : s.level > 0 ? 'border-slate-700/70 bg-[#0f141d]' : 'border-slate-800 bg-[#0f141d]/50')}>
-      <div className="flex items-center gap-1 p-1">
-        <button type="button" onClick={() => setProbe({ type: 'skill', id: s.id })} className="flex min-h-10 min-w-0 flex-1 touch-manipulation items-center gap-1.5 rounded px-1 text-left hover:bg-slate-800/60">
-          <span className={cx('w-7 shrink-0 font-mono text-[10px] font-bold', s.level > 0 ? 'text-amber-500' : 'text-slate-600')}>{s.attr}</span>
+    <div className={cx('rounded-md border transition-colors', active ? 'focus-ring border-amber-500/60 bg-amber-500/5' : s.level > 0 ? 'border-slate-700/70 bg-[#0f141d]' : 'border-slate-800/80 bg-[#0f141d]/50')}>
+      <div className="flex items-center gap-2 p-1.5">
+        <button type="button" onClick={() => setProbe({ type: 'skill', id: s.id })} className="flex min-h-9 min-w-0 flex-1 touch-manipulation items-center gap-2 rounded px-1.5 text-left hover:bg-slate-800/60">
+          <span className={cx('w-8 shrink-0 font-mono text-[11px] font-bold', s.level > 0 ? 'text-amber-500' : 'text-slate-600')}>{s.attr}</span>
           <span className="min-w-0 flex-1">
-            <span className={cx('block truncate text-[13px]', s.level > 0 ? 'font-semibold text-slate-100' : 'text-slate-400')}>
+            <span className={cx('block truncate text-sm', s.level > 0 ? 'font-semibold text-slate-100' : 'text-slate-400')}>
               {s.name}
               {hasMods && <span className="ml-1 text-[10px] text-amber-400">◆</span>}
             </span>
@@ -40,7 +40,7 @@ function SkillRow({ s }: { s: Skill }) {
           onClick={() => setEdit((e) => !e)}
           className={cx('flex size-8 shrink-0 items-center justify-center rounded-md', edit ? 'text-amber-300' : 'text-slate-600 hover:text-slate-300')}
         >
-          {edit ? <PencilOff className="size-3.5" /> : <Pencil className="size-3.5" />}
+          {edit ? <PencilOff className="size-4" /> : <Pencil className="size-4" />}
         </button>
       </div>
       {edit && (
@@ -96,7 +96,6 @@ export function SkillsPanel() {
     <Panel
       title={`Aktionsfertigkeiten (${learned}/${char.skills.length})`}
       icon={<ListChecks className="size-4" />}
-      collapsible
       actions={
         <Btn
           small
@@ -122,15 +121,20 @@ export function SkillsPanel() {
           <Plus className="size-3.5" /> Eigene
         </Btn>
       }
-      bodyClassName="p-2"
+      bodyClassName="p-2.5"
     >
-      <div className="mb-2 space-y-1.5">
+      <div className="mb-2.5 space-y-2">
         <div className="flex gap-1.5">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-slate-500" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Fertigkeit suchen…" className="field w-full pl-8 text-sm" />
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-500" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Fertigkeit suchen…"
+              className="field w-full pl-8 text-sm placeholder:text-slate-600"
+            />
           </div>
-          <Btn tone={learnedOnly ? 'amber' : 'slate'} onClick={() => setLearnedOnly((l) => !l)}>
+          <Btn tone={learnedOnly ? 'cyan' : 'slate'} active={learnedOnly} onClick={() => setLearnedOnly((v) => !v)}>
             Nur Gelernte
           </Btn>
         </div>
@@ -141,8 +145,8 @@ export function SkillsPanel() {
               key={c}
               onClick={() => setCat(c)}
               className={cx(
-                'min-h-8 rounded border px-2 text-[11px] font-semibold',
-                cat === c ? 'border-amber-500/70 bg-amber-500/15 text-amber-300' : 'border-slate-700 text-slate-500 hover:text-slate-300',
+                'min-h-8 touch-manipulation rounded border px-2 text-[11px] font-semibold',
+                cat === c ? 'border-amber-500/70 bg-amber-500/15 text-amber-300' : 'border-slate-700/70 text-slate-400 hover:text-slate-200',
               )}
             >
               {c}
@@ -150,19 +154,23 @@ export function SkillsPanel() {
           ))}
         </div>
       </div>
-      <div className="space-y-3">
-        {groups.length === 0 && <EmptyHint>Keine passenden Fertigkeiten.</EmptyHint>}
-        {groups.map((g) => (
-          <div key={g.cat}>
-            <div className="label mb-1 px-1 text-amber-500/70">{g.cat}</div>
-            <div className="space-y-1">
-              {g.items.map((s) => (
-                <SkillRow key={s.id} s={s} />
-              ))}
+
+      {groups.length === 0 ? (
+        <EmptyHint>Keine passenden Fertigkeiten.</EmptyHint>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <div key={g.cat}>
+              <div className="label mb-1 px-1 text-amber-500/80">{g.cat}</div>
+              <div className="space-y-1">
+                {g.items.map((s) => (
+                  <SkillRow key={s.id} s={s} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }

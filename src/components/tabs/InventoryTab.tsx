@@ -19,7 +19,7 @@ function ItemRow({ it }: { it: Item }) {
       if (x) recipe(x);
     });
   return (
-    <div className={cx('space-y-1.5 rounded-md border bg-[#0f141d] p-1.5', it.consumable && it.qty <= 0 ? 'border-red-500/50' : 'border-slate-700/60')}>
+    <div className={cx('space-y-1.5 rounded-md border bg-[#0f141d] p-2', it.consumable && it.qty <= 0 ? 'border-red-500/50' : 'border-slate-700/60')}>
       <div className="flex items-center gap-1.5">
         <TextInput value={it.name} onChange={(v) => set((x) => void (x.name = v))} className="min-w-0 flex-1 font-semibold" />
         <Stepper size="sm" value={it.qty} min={0} max={9999} tone={it.qty <= 0 ? 'red' : 'slate'} onChange={(n) => set((x) => void (x.qty = n))} />
@@ -27,11 +27,11 @@ function ItemRow({ it }: { it: Item }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <label className="flex items-center gap-1 text-[10px] text-slate-500">
           kg
-          <NumInput value={it.weight} float min={0} onChange={(v) => set((x) => void (x.weight = v))} className="h-8 w-14 text-xs" />
+          <NumInput value={it.weight} float min={0} onChange={(v) => set((x) => void (x.weight = v))} className="h-8 min-h-8 w-14 text-xs" />
         </label>
         <label className="flex items-center gap-1 text-[10px] text-slate-500">
           Slots
-          <NumInput value={it.slots} min={0} onChange={(v) => set((x) => void (x.slots = v))} className="h-8 w-10 text-xs" />
+          <NumInput value={it.slots} min={0} onChange={(v) => set((x) => void (x.slots = v))} className="h-8 min-h-8 w-10 text-xs" />
         </label>
         <button
           type="button"
@@ -58,16 +58,76 @@ function ItemRow({ it }: { it: Item }) {
   );
 }
 
-export function InventoryTab() {
+/** Menü 3 (Rechts): Rüstung & Schild */
+export function ArmorPanel() {
   const { char, update } = useSheet();
   const a = char.armor;
-  const carry = effectiveAttr(char, 'STR') * 10;
-  const weight = char.items.filter((i) => i.location !== 'lager').reduce((s, i) => s + i.weight * i.qty, 0);
   const bel = effectiveBel(char);
 
   return (
+    <Panel title="Rüstung & Schild" icon={<Shield className="size-4" />} bodyClassName="p-2.5 space-y-2.5">
+      <Field label="Rüstung">
+        <TextInput value={a.name} onChange={(v) => update((c) => void (c.armor.name = v))} placeholder="z. B. Leichte Gefechtsrüstung" />
+      </Field>
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ['NRW', 'nrw'],
+            ['RW-Ist', 'rwIst'],
+            ['RW-Soll', 'rwSoll'],
+            ['Härte (HAR)', 'haerte'],
+            ['Belastung (BEL)', 'bel'],
+            ['Kapazität (KAP)', 'kap'],
+          ] as const
+        ).map(([label, key]) => (
+          <Field key={key} label={label}>
+            <NumInput value={a[key]} min={0} onChange={(v) => update((c) => void (c.armor[key] = v))} className="w-full" />
+          </Field>
+        ))}
+      </div>
+      {a.rwIst < a.rwSoll && <p className="text-[11px] text-red-400">Rüstung beschädigt: RW {a.rwIst} von {a.rwSoll}.</p>}
+      <div className={cx('rounded-md border px-2.5 py-1.5 font-mono text-xs', bel > 0 ? 'border-red-500/50 text-red-300' : 'border-slate-700/60 text-slate-400')}>
+        eff. BEL = max(0, {a.bel} − ⌊STR {effectiveAttr(char, 'STR')} / 2⌋) = <b>{bel}</b> → PEW auf körperliche Aktionen (außer Fernkampf)
+      </div>
+      <Field label="Modifikationen">
+        <TextInput value={a.mods} onChange={(v) => update((c) => void (c.armor.mods = v))} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Lebenserhaltung (Std.)">
+          <div className="flex items-center gap-1">
+            <Stepper size="sm" tone="cyan" value={a.lifeSupportCur} min={0} max={Math.max(a.lifeSupportMax, 0)} onChange={(v) => update((c) => void (c.armor.lifeSupportCur = v))} />
+            <span className="font-mono text-xs text-slate-500">/</span>
+            <NumInput value={a.lifeSupportMax} min={0} onChange={(v) => update((c) => void (c.armor.lifeSupportMax = v))} className="h-8 min-h-8 w-11 text-xs" />
+          </div>
+        </Field>
+        <Field label="Schild (Modell)">
+          <TextInput value={a.shieldName} onChange={(v) => update((c) => void (c.armor.shieldName = v))} />
+        </Field>
+        <Field label="Schild SW max">
+          <NumInput
+            value={char.vitals.shields.max}
+            min={0}
+            onChange={(v) => update((c) => void ((c.vitals.shields.max = v), (c.vitals.shields.cur = Math.min(c.vitals.shields.cur, v))))}
+            className="w-full text-cyan-300"
+          />
+        </Field>
+        <Field label="Aufladung / Runde">
+          <NumInput value={a.shieldRecharge} min={0} onChange={(v) => update((c) => void (c.armor.shieldRecharge = v))} className="w-full text-cyan-300" />
+        </Field>
+      </div>
+    </Panel>
+  );
+}
+
+/** Menü 6 (Links): Credits, Lebensstil & Inventar */
+export function CreditsInventoryPanel() {
+  const { char, update } = useSheet();
+  const carry = effectiveAttr(char, 'STR') * 10;
+  const weight = char.items.filter((i) => i.location !== 'lager').reduce((s, i) => s + i.weight * i.qty, 0);
+
+  return (
     <div className="space-y-3">
-      <Panel title="Credits & Lebensstil" icon={<Coins className="size-4" />}>
+      <Panel title="Credits & Lebensstil" icon={<Coins className="size-4" />} bodyClassName="p-2.5">
         <div className="flex items-center gap-2">
           <NumInput value={char.credits} min={-9999999} max={999999999} onChange={(v) => update((c) => void (c.credits = v))} className="h-12 w-full flex-1 text-2xl font-black text-amber-400" />
           <span className="font-mono text-lg font-bold text-amber-500">₡</span>
@@ -92,60 +152,6 @@ export function InventoryTab() {
         </Btn>
       </Panel>
 
-      <Panel title="Rüstung & Schild" icon={<Shield className="size-4" />} collapsible>
-        <div className="space-y-2">
-          <Field label="Rüstung">
-            <TextInput value={a.name} onChange={(v) => update((c) => void (c.armor.name = v))} placeholder="z. B. Leichte Gefechtsrüstung" />
-          </Field>
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                ['NRW', 'nrw'],
-                ['RW-Ist', 'rwIst'],
-                ['RW-Soll', 'rwSoll'],
-                ['Härte (HAR)', 'haerte'],
-                ['Belastung (BEL)', 'bel'],
-                ['Kapazität (KAP)', 'kap'],
-              ] as const
-            ).map(([label, key]) => (
-              <Field key={key} label={label}>
-                <NumInput value={a[key]} min={0} onChange={(v) => update((c) => void (c.armor[key] = v))} className="w-full" />
-              </Field>
-            ))}
-          </div>
-          {a.rwIst < a.rwSoll && <p className="text-[11px] text-red-400">Rüstung beschädigt: RW {a.rwIst} von {a.rwSoll}.</p>}
-          <div className={cx('rounded-md border px-2 py-1.5 font-mono text-xs', bel > 0 ? 'border-red-500/50 text-red-300' : 'border-slate-700/60 text-slate-400')}>
-            eff. BEL = max(0, {a.bel} − ⌊STR {effectiveAttr(char, 'STR')} / 2⌋) = <b>{bel}</b> → PEW auf körperliche Aktionen (außer Fernkampf)
-          </div>
-          <Field label="Modifikationen">
-            <TextInput value={a.mods} onChange={(v) => update((c) => void (c.armor.mods = v))} />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Lebenserhaltung (Std.)">
-              <div className="flex items-center gap-1">
-                <Stepper size="sm" tone="cyan" value={a.lifeSupportCur} min={0} max={Math.max(a.lifeSupportMax, 0)} onChange={(v) => update((c) => void (c.armor.lifeSupportCur = v))} />
-                <span className="font-mono text-xs text-slate-500">/</span>
-                <NumInput value={a.lifeSupportMax} min={0} onChange={(v) => update((c) => void (c.armor.lifeSupportMax = v))} className="h-9 w-11 text-xs" />
-              </div>
-            </Field>
-            <Field label="Schild (Modell)">
-              <TextInput value={a.shieldName} onChange={(v) => update((c) => void (c.armor.shieldName = v))} />
-            </Field>
-            <Field label="Schild SW max">
-              <NumInput
-                value={char.vitals.shields.max}
-                min={0}
-                onChange={(v) => update((c) => void ((c.vitals.shields.max = v), (c.vitals.shields.cur = Math.min(c.vitals.shields.cur, v))))}
-                className="w-full text-cyan-300"
-              />
-            </Field>
-            <Field label="Aufladung / Runde">
-              <NumInput value={a.shieldRecharge} min={0} onChange={(v) => update((c) => void (c.armor.shieldRecharge = v))} className="w-full text-cyan-300" />
-            </Field>
-          </div>
-        </div>
-      </Panel>
-
       <Panel
         title="Ausrüstung"
         icon={<Package className="size-4" />}
@@ -154,7 +160,7 @@ export function InventoryTab() {
             {weight.toFixed(1)} / {carry} kg
           </span>
         }
-        bodyClassName="p-2 space-y-3"
+        bodyClassName="p-2.5 space-y-3"
       >
         {LOCATIONS.map((loc) => {
           const items = char.items.filter((i) => i.location === loc.key);
@@ -168,7 +174,7 @@ export function InventoryTab() {
                   <Plus className="size-3.5" />
                 </Btn>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {items.length === 0 && <EmptyHint>Leer</EmptyHint>}
                 {items.map((it) => (
                   <ItemRow key={it.id} it={it} />
