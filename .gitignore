@@ -1,0 +1,12 @@
+node_modules
+dist
+*.local
+.firebase
+.env
+.env.*
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# Regelwerk-PDF (38 MB) lokal behalten, nicht ins Git-Repo pushen
+*.pdf

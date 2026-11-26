@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-void: #0b0e14;
+  --color-void-2: #0f141d;
+  --color-steel: #151b26;
+  --color-steel-2: #1b2332;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    background: #0b0e14;
+    color: #cbd5e1;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-image:
+      radial-gradient(ellipse at top, rgba(245, 158, 11, 0.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
+    background-attachment: fixed;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  select option {
+    background: #151b26;
+    color: #e2e8f0;
+  }
+  ::selection {
+    background: rgba(245, 158, 11, 0.35);
+  }
+}
+
+@layer components {
+  .panel {
+    position: relative;
+    background: linear-gradient(180deg, #1b2332 0%, #151b26 100%);
+    border: 1px solid rgb(51 65 85 / 0.7);
+    border-radius: 0.5rem;
+  }
+  .panel::before,
+  .panel::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    border-color: rgb(245 158 11 / 0.55);
+  }
+  .panel::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+    border-top-left-radius: 0.5rem;
+  }
+  .panel::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 2px solid;
+    border-right: 2px solid;
+    border-bottom-right-radius: 0.5rem;
+  }
+  .field {
+    background: #0f141d;
+    border: 1px solid rgb(51 65 85 / 0.8);
+    border-radius: 0.375rem;
+    color: #e2e8f0;
+    padding: 0.25rem 0.5rem;
+    min-height: 2.25rem;
+    outline: none;
+    transition: border-color 120ms;
+  }
+  .field:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 1px rgb(245 158 11 / 0.35);
+  }
+  .label {
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .scroll-col {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+  .scroll-col::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-col::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+  .focus-ring {
+    box-shadow:
+      0 0 0 1px #f59e0b,
+      0 0 18px -4px rgb(245 158 11 / 0.6);
+  }
+}
