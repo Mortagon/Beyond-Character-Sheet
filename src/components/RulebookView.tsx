@@ -1,16 +1,20 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { BookOpen, ChevronRight, Search, X } from 'lucide-react';
 import { GRW_CHAPTERS, type CodexSection } from '../data/grwCodex';
 import { Panel, cx } from './ui';
+import { findMatchRanges, foldText } from '../logic/searchFold';
 
-/** Suchindex einmalig beim Laden des Moduls aufbauen statt bei jedem Tastendruck für jeden Abschnitt neu. */
+/**
+ * Suchindex einmalig beim Laden des Moduls aufbauen statt bei jedem Tastendruck für jeden Abschnitt neu.
+ * Bereits umlaut-gefaltet (ä→ae, ö→oe, ü→ue, ß→ss), damit „Glueck“ und „Glück“ gleichwertig sind.
+ */
 const SEARCH_INDEX = new Map<CodexSection, string>(
   GRW_CHAPTERS.flatMap((c) =>
     c.sections.map((s): [CodexSection, string] => [
       s,
-      [s.title, s.page, s.summary, ...s.tags, ...(s.bullets ?? []), ...(s.table ? [...s.table.headers, ...s.table.rows.flat()] : [])]
-        .join(' ')
-        .toLowerCase(),
+      foldText(
+        [s.title, s.page, s.summary, ...s.tags, ...(s.bullets ?? []), ...(s.table ? [...s.table.headers, ...s.table.rows.flat()] : [])].join(' '),
+      ),
     ]),
   ),
 );
@@ -19,10 +23,30 @@ function matchesQuery(s: CodexSection, q: string): boolean {
   return !q || (SEARCH_INDEX.get(s)?.includes(q) ?? false);
 }
 
+/** Markiert Treffer der (gefalteten) Query an der richtigen Stelle im Originaltext. */
+function Hl({ text, q }: { text: string; q: string }) {
+  if (!q) return <>{text}</>;
+  const ranges = findMatchRanges(text, q);
+  if (ranges.length === 0) return <>{text}</>;
+  const parts: ReactNode[] = [];
+  let pos = 0;
+  ranges.forEach(([start, end], i) => {
+    if (start > pos) parts.push(<Fragment key={`t${i}`}>{text.slice(pos, start)}</Fragment>);
+    parts.push(
+      <mark key={`m${i}`} className="rounded-sm bg-amber-500/30 text-inherit">
+        {text.slice(start, end)}
+      </mark>,
+    );
+    pos = end;
+  });
+  if (pos < text.length) parts.push(<Fragment key="rest">{text.slice(pos)}</Fragment>);
+  return <>{parts}</>;
+}
+
 export function RulebookView() {
   const [chapterId, setChapterId] = useState<string>(GRW_CHAPTERS[0].id);
   const [query, setQuery] = useState('');
-  const q = query.trim().toLowerCase();
+  const q = useMemo(() => foldText(query.trim()), [query]);
   const activeChapter = GRW_CHAPTERS.find((c) => c.id === chapterId) ?? GRW_CHAPTERS[0];
 
   const filteredChapters = useMemo(() => {
@@ -144,12 +168,16 @@ export function RulebookView() {
               {sections.map((s) => (
                 <article key={s.id} id={`grw-${s.id}`} className="scroll-mt-20 space-y-2.5 rounded-md border border-slate-700/70 bg-[#0f141d] p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-800 pb-1.5">
-                    <h3 className="text-base font-bold text-amber-300">{s.title}</h3>
+                    <h3 className="text-base font-bold text-amber-300">
+                      <Hl text={s.title} q={q} />
+                    </h3>
                     <span className="rounded border border-slate-700 bg-slate-900/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400">
-                      GRW {s.page}
+                      GRW <Hl text={s.page} q={q} />
                     </span>
                   </div>
-                  <p className="text-xs leading-relaxed text-slate-200">{s.summary}</p>
+                  <p className="text-xs leading-relaxed text-slate-200">
+                    <Hl text={s.summary} q={q} />
+                  </p>
                   {s.bullets && s.bullets.length > 0 && (
                     <ul className="space-y-1.5 text-xs leading-relaxed text-slate-300">
                       {s.bullets.map((b, i) => {
@@ -160,11 +188,13 @@ export function RulebookView() {
                             <span>
                               {colon > 0 && colon < 42 ? (
                                 <>
-                                  <strong className="font-semibold text-slate-100">{b.slice(0, colon + 1)}</strong>
-                                  {b.slice(colon + 1)}
+                                  <strong className="font-semibold text-slate-100">
+                                    <Hl text={b.slice(0, colon + 1)} q={q} />
+                                  </strong>
+                                  <Hl text={b.slice(colon + 1)} q={q} />
                                 </>
                               ) : (
-                                b
+                                <Hl text={b} q={q} />
                               )}
                             </span>
                           </li>
@@ -179,7 +209,7 @@ export function RulebookView() {
                           <tr className="border-b border-slate-700 bg-slate-900/80 text-[10px] font-bold uppercase tracking-wider text-amber-400">
                             {s.table.headers.map((h) => (
                               <th key={h} className="px-2.5 py-1.5">
-                                {h}
+                                <Hl text={h} q={q} />
                               </th>
                             ))}
                           </tr>
@@ -189,7 +219,7 @@ export function RulebookView() {
                             <tr key={rIdx} className="border-b border-slate-800/70 last:border-b-0">
                               {row.map((cell, cIdx) => (
                                 <td key={cIdx} className={cx('px-2.5 py-1.5 align-top', cIdx === 0 ? 'font-semibold text-slate-100' : 'text-slate-300')}>
-                                  {cell}
+                                  <Hl text={cell} q={q} />
                                 </td>
                               ))}
                             </tr>
@@ -206,7 +236,7 @@ export function RulebookView() {
                         onClick={() => setQuery(tag)}
                         className="rounded border border-slate-700/70 px-1.5 py-0.5 font-mono text-[10px] text-cyan-300 hover:border-cyan-500/60"
                       >
-                        #{tag}
+                        #<Hl text={tag} q={q} />
                       </button>
                     ))}
                   </div>

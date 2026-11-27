@@ -215,7 +215,7 @@ export default function App() {
   const [probe, setProbe] = useState<ProbeRef | null>(null);
   const [menu, setMenu] = useState<MainMenu>('charakter');
   const [picker, setPicker] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; error?: boolean; info?: boolean } | null>(null);
 
   // ---------- Light / Dark Mode + Transition Screen ----------
   const [theme, setTheme] = useState<ThemeMode>(loadInitialTheme);
@@ -388,7 +388,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4500);
+    const t = setTimeout(() => setToast(null), toast.info ? 2500 : 4500);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -398,6 +398,11 @@ export default function App() {
       await fb.loginWithGoogle();
     } catch (err) {
       const fb = await loadFirebase().catch(() => null);
+      if (fb?.isLoginCancelled(err)) {
+        // Popup vom User geschlossen/abgebrochen: dezenter Hinweis statt Fehler-Alarm
+        setToast({ msg: fb.formatFirebaseError(err), info: true });
+        return;
+      }
       setToast({ msg: fb ? fb.formatFirebaseError(err) : 'Login nicht möglich (offline?).', error: true });
     }
   };
@@ -559,13 +564,17 @@ export default function App() {
   );
 }
 
-function Toast({ msg, error }: { msg: string; error?: boolean }) {
+function Toast({ msg, error, info }: { msg: string; error?: boolean; info?: boolean }) {
   return (
     <div
       role={error ? 'alert' : 'status'}
       className={cx(
         'fixed top-3 left-1/2 z-[60] -translate-x-1/2 rounded-md border px-4 py-2 text-sm font-semibold shadow-xl',
-        error ? 'border-red-500/70 bg-red-950/95 text-red-200' : 'border-emerald-500/60 bg-emerald-950/95 text-emerald-200',
+        error
+          ? 'border-red-500/70 bg-red-950/95 text-red-200'
+          : info
+            ? 'border-slate-600 bg-[#151b26] text-slate-300'
+            : 'border-emerald-500/60 bg-emerald-950/95 text-emerald-200',
       )}
     >
       {msg}

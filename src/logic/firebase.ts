@@ -4,7 +4,6 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -46,17 +45,16 @@ export function subscribeAuth(cb: (user: User | null) => void) {
 }
 
 export async function loginWithGoogle(): Promise<User | null> {
-  try {
-    const res = await signInWithPopup(auth, googleProvider);
-    return res.user;
-  } catch (err) {
-    const code = (err as { code?: string })?.code ?? '';
-    if (code === 'auth/popup-blocked') {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
-    throw err;
-  }
+  // Fehler (auch auth/popup-blocked) gehen an den Aufrufer, der per formatFirebaseError einen Hinweis zeigt.
+  const res = await signInWithPopup(auth, googleProvider);
+  return res.user;
+}
+
+/** Firebase-Codes, bei denen der User das Login-Popup selbst geschlossen/abgebrochen hat – kein echter Fehler. */
+const LOGIN_CANCEL_CODES = new Set(['auth/popup-closed-by-user', 'auth/cancelled-popup-request', 'auth/user-cancelled']);
+
+export function isLoginCancelled(err: unknown): boolean {
+  return LOGIN_CANCEL_CODES.has((err as { code?: string })?.code ?? '');
 }
 
 export async function logoutGoogle(): Promise<void> {
@@ -72,14 +70,14 @@ export function formatFirebaseError(err: unknown): string {
   if (code === 'auth/unauthorized-domain') {
     return 'Diese Domain ist in Firebase Authentication noch nicht autorisiert.';
   }
-  if (code === 'auth/popup-closed-by-user') {
-    return 'Anmeldefenster geschlossen.';
+  if (LOGIN_CANCEL_CODES.has(code)) {
+    return 'Anmeldung abgebrochen';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'Das Anmeldefenster wurde vom Browser blockiert – bitte Popups für diese Seite erlauben und erneut anmelden.';
   }
   if (code === 'permission-denied' || msg.includes('PERMISSION_DENIED')) {
     return 'Firestore-Zugriff verweigert (Regeln oder Firestore-Datenbank in Firebase Console prüfen).';
-  }
-  if (code === 'auth/cancelled-popup-request') {
-    return 'Es ist bereits ein Anmeldefenster geöffnet.';
   }
   if (code === 'auth/network-request-failed' || code === 'unavailable') {
     return 'Cloud nicht erreichbar (offline?). Änderungen bleiben lokal gespeichert.';

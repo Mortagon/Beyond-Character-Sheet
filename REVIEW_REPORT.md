@@ -172,3 +172,20 @@ Im ersten Lauf gab es außerdem in Schritt 6 einen Timeout. Ursache war das Test
 ### Nicht im Browser getestet
 
 Google-Login und Firestore-Sync gegen das Live-Projekt (laut Vorgabe kein Login) sowie JSON-Import/-Export über den Dateidialog.
+
+## 8. Verbesserungen nach Live-Test
+
+| # | Bereich | Änderung |
+|---|---|---|
+| 1 | Regelwerk-Suche (`src/logic/searchFold.ts`, `src/components/RulebookView.tsx`) | **Umlaut-tolerante Suche:** Query und Texte werden kleingeschrieben und ä/ö/ü/ß zu ae/oe/ue/ss aufgefaltet. „Glueck“ findet also „Glück“ und umgekehrt. Der Suchindex wird weiterhin einmal beim Laden des Moduls gefaltet. Für das Highlighting wird jeder Text einmal mit einer Positionstabelle (gefaltet → Original) gefaltet und memoisiert. Treffer werden per `<mark>` exakt im Originaltext markiert (Titel, Zusammenfassung, Stichpunkte, Tabellen, Tags). |
+| 2 | Google-Login (`src/logic/firebase.ts`, `src/App.tsx`) | `auth/popup-closed-by-user`, `auth/cancelled-popup-request` und `auth/user-cancelled` zeigen einen dezenten Hinweis „Anmeldung abgebrochen“ (neutraler Toast mit `role="status"`, 2,5 s) statt eines Fehler-Alarms (`isLoginCancelled()`). Bei `auth/popup-blocked` erscheint ein Hinweis, Popups für die Seite zu erlauben. Der bisherige automatische Redirect-Fallback entfällt dafür. Die übrige Fehlerbehandlung läuft weiter über `formatFirebaseError`. |
+
+**Test:** `npm run build` mit Exit-Code 0. Playwright (Chromium headless, 1280×800, temporär außerhalb des Projekts installiert und wieder entfernt) gegen `http://localhost:5173`:
+
+| Schritt | Ergebnis | Details |
+|---|---|---|
+| Suche „Glueck“ | **PASS** | 7 Abschnitte, 17 Markierungen, alle auf „Glück“/„glück“ (`fix-01-suche-glueck-ascii.png`) |
+| Suche „Glück“ | **PASS** | identisch: 7 Abschnitte, 17 korrekte Markierungen (`fix-02-suche-glueck-umlaut.png`) |
+| Gegenprobe „grösse“ / „groesse“ | **PASS** | gleiche Trefferzahl |
+| Login-Popup öffnen + schließen | **PASS** | `fix-03-login-popup.png`; Hinweis „Anmeldung abgebrochen“ erscheint als neutraler Status-Toast, kein Alert (`fix-04-anmeldung-abgebrochen.png`), verschwindet nach ~2,5 s. Firebase meldet das Schließen erst nach ca. 10 s (internes Polling/Timeout des SDK). |
+| Console-Errors | **PASS** | keine |
