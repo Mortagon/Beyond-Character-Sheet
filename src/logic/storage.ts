@@ -76,6 +76,8 @@ export function parseImport(text: string, existingIds: Set<string>): Character[]
     else if (o.character && typeof o.character === 'object') list = [o.character];
     else if ('attributes' in o || 'name' in o) list = [o];
   }
+  // Nur Objekte sind gültige Charaktere – verhindert z. B. bei `[1, 2, 3]` drei leere Bögen.
+  list = list.filter((raw) => raw !== null && typeof raw === 'object' && !Array.isArray(raw));
   if (list.length === 0) throw new Error('Keine Charakterdaten in der Datei gefunden.');
   return list.map((raw) => {
     const c = normalizeCharacter(raw);
@@ -84,4 +86,28 @@ export function parseImport(text: string, existingIds: Set<string>): Character[]
     c.updatedAt = Date.now();
     return c;
   });
+}
+
+/**
+ * Führt lokale und Cloud-Charaktere anhand ihrer ID & updatedAt verlustfrei zusammen.
+ * Neuere Version derselben ID gewinnt; eindeutige IDs aus beiden Quellen bleiben erhalten.
+ * (Reine Funktion ohne Firebase-Abhängigkeit, damit sie nicht das Firebase-Bundle benötigt.)
+ */
+export function mergeCharacterStates(local: StoredState, cloud: StoredState | null): StoredState {
+  if (!cloud || cloud.characters.length === 0) return local;
+  const map = new Map<string, Character>();
+  for (const c of cloud.characters) map.set(c.id, c);
+  for (const c of local.characters) {
+    const existing = map.get(c.id);
+    if (!existing || (c.updatedAt ?? 0) > (existing.updatedAt ?? 0)) {
+      map.set(c.id, c);
+    }
+  }
+  const merged = Array.from(map.values()).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const activeId =
+    (cloud.activeId && map.has(cloud.activeId) ? cloud.activeId : null) ??
+    (local.activeId && map.has(local.activeId) ? local.activeId : null) ??
+    merged[0]?.id ??
+    null;
+  return { version: 1, characters: merged, activeId };
 }

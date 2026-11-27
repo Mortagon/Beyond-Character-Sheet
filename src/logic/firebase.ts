@@ -8,9 +8,20 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, getFirestore, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  writeBatch,
+  type DocumentReference,
+  type Firestore,
+} from 'firebase/firestore';
 import type { Character } from '../types';
 import { normalizeCharacter } from './character';
+import { fingerprint, type CloudDiff, type CloudSnapshot } from './cloudSync';
 import type { StoredState } from './storage';
 
 const firebaseConfig = {
@@ -23,8 +34,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
@@ -67,55 +78,109 @@ export function formatFirebaseError(err: unknown): string {
   if (code === 'permission-denied' || msg.includes('PERMISSION_DENIED')) {
     return 'Firestore-Zugriff verweigert (Regeln oder Firestore-Datenbank in Firebase Console prüfen).';
   }
-  if (msg.includes('Cloud Firestore API') || code === 'unavailable' || code === 'failed-precondition') {
+  if (code === 'auth/cancelled-popup-request') {
+    return 'Es ist bereits ein Anmeldefenster geöffnet.';
+  }
+  if (code === 'auth/network-request-failed' || code === 'unavailable') {
+    return 'Cloud nicht erreichbar (offline?). Änderungen bleiben lokal gespeichert.';
+  }
+  if (msg.includes('Cloud Firestore API') || code === 'failed-precondition') {
     return 'Cloud Firestore ist im Firebase-Projekt noch nicht initialisiert.';
+  }
+  if (code === 'resource-exhausted' || code === 'invalid-argument') {
+    return `Cloud-Speichern abgelehnt (${code}) – Daten evtl. zu groß oder ungültig. Lokal bleibt alles gespeichert.`;
   }
   return msg;
 }
 
-/** Lädt das Nutzerdokument aus Firestore (null falls noch keines existiert). */
-export async function loadCloudCharacters(uid: string): Promise<StoredState | null> {
-  const snap = await getDoc(doc(db, 'users', uid));
-  if (!snap.exists()) return null;
-  const data = snap.data() as { characters?: unknown[]; activeId?: string | null };
-  const characters = Array.isArray(data.characters) ? data.characters.map(normalizeCharacter) : [];
-  const activeId = typeof data.activeId === 'string' ? data.activeId : characters[0]?.id ?? null;
-  return { version: 1, characters, activeId };
+/** Firestore erlaubt max. 500 Operationen pro Batch. */
+const MAX_BATCH_OPS = 500;
+
+type BatchOp = (batch: ReturnType<typeof writeBatch>) => void;
+
+/** Führt die Operationen in Batches à max. 500 Ops nacheinander aus (Reihenfolge bleibt erhalten). */
+async function commitInBatches(firestore: Firestore, ops: BatchOp[]): Promise<void> {
+  for (let i = 0; i < ops.length; i += MAX_BATCH_OPS) {
+    const batch = writeBatch(firestore);
+    for (const op of ops.slice(i, i + MAX_BATCH_OPS)) op(batch);
+    await batch.commit();
+  }
 }
 
-/** Speichert alle Charaktere unter users/{uid}. */
-export async function saveCloudCharacters(uid: string, state: StoredState): Promise<void> {
-  await setDoc(
-    doc(db, 'users', uid),
-    {
-      version: 1,
-      characters: state.characters,
-      activeId: state.activeId,
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+function metaRef(uid: string): DocumentReference {
+  return doc(db, 'users', uid);
+}
+
+function characterRef(uid: string, id: string): DocumentReference {
+  return doc(db, 'users', uid, 'characters', id);
+}
+
+/** Firestore-Nutzlast: reines JSON (entfernt `undefined`, das Firestore ablehnt) + updatedAt. */
+function characterPayload(c: Character): Record<string, unknown> {
+  return { ...(JSON.parse(fingerprint(c)) as Record<string, unknown>), updatedAt: c.updatedAt ?? Date.now() };
+}
+
+export interface CloudLoadResult {
+  state: StoredState;
+  /** Stand, der nach dem Laden (und ggf. der Migration) in Firestore liegt */
+  snapshot: CloudSnapshot;
 }
 
 /**
- * Führt lokale und Cloud-Charaktere anhand ihrer ID & updatedAt verlustfrei zusammen.
- * Neuere Version derselben ID gewinnt; eindeutige IDs aus beiden Quellen bleiben erhalten.
+ * Lädt Metadaten-Dokument + Subcollection `users/{uid}/characters`.
+ * Enthält `users/{uid}` noch das Legacy-Feld `characters` (altes Ein-Dokument-Format), werden diese
+ * Charaktere in die Subcollection migriert (neuere Version je ID gewinnt) und das Feld danach entfernt.
  */
-export function mergeCharacterStates(local: StoredState, cloud: StoredState | null): StoredState {
-  if (!cloud || cloud.characters.length === 0) return local;
-  const map = new Map<string, Character>();
-  for (const c of cloud.characters) map.set(c.id, c);
-  for (const c of local.characters) {
-    const existing = map.get(c.id);
-    if (!existing || (c.updatedAt ?? 0) > (existing.updatedAt ?? 0)) {
-      map.set(c.id, c);
+export async function loadCloudCharacters(uid: string): Promise<CloudLoadResult> {
+  const [metaSnap, charSnap] = await Promise.all([getDoc(metaRef(uid)), getDocs(collection(db, 'users', uid, 'characters'))]);
+
+  const byId = new Map<string, Character>();
+  for (const d of charSnap.docs) byId.set(d.id, normalizeCharacter({ ...d.data(), id: d.id }));
+
+  const meta = metaSnap.exists() ? (metaSnap.data() as { characters?: unknown; activeId?: unknown }) : null;
+  let activeId = typeof meta?.activeId === 'string' ? meta.activeId : null;
+
+  if (meta && 'characters' in meta) {
+    // ---- Migration aus dem Legacy-Format ----
+    const legacy = Array.isArray(meta.characters) ? meta.characters.map(normalizeCharacter) : [];
+    const toWrite: Character[] = [];
+    for (const c of legacy) {
+      const existing = byId.get(c.id);
+      if (!existing || (c.updatedAt ?? 0) > (existing.updatedAt ?? 0)) {
+        byId.set(c.id, c);
+        toWrite.push(c);
+      }
     }
+    const ops: BatchOp[] = toWrite.map((c) => (b) => b.set(characterRef(uid, c.id), characterPayload(c)));
+    // Legacy-Feld erst im letzten Batch entfernen – also erst, wenn alle Charaktere geschrieben sind.
+    ops.push((b) =>
+      b.set(metaRef(uid), { version: 1, activeId, updatedAt: Date.now(), characters: deleteField() }, { merge: true }),
+    );
+    await commitInBatches(db, ops);
   }
-  const merged = Array.from(map.values()).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-  const activeId =
-    (cloud.activeId && map.has(cloud.activeId) ? cloud.activeId : null) ??
-    (local.activeId && map.has(local.activeId) ? local.activeId : null) ??
-    merged[0]?.id ??
-    null;
-  return { version: 1, characters: merged, activeId };
+
+  const characters = [...byId.values()].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  if (!activeId || !byId.has(activeId)) activeId = characters[0]?.id ?? null;
+
+  return {
+    state: { version: 1, characters, activeId },
+    snapshot: {
+      metaExists: meta !== null,
+      activeId: typeof meta?.activeId === 'string' ? meta.activeId : null,
+      chars: new Map(characters.map((c) => [c.id, fingerprint(c)])),
+    },
+  };
+}
+
+/** Schreibt nur geänderte/neue Charaktere, löscht lokal entfernte und aktualisiert bei Bedarf die Metadaten. */
+export async function saveCloudChanges(uid: string, diff: CloudDiff): Promise<void> {
+  const ops: BatchOp[] = [
+    ...diff.upserts.map((c): BatchOp => (b) => b.set(characterRef(uid, c.id), characterPayload(c))),
+    ...diff.deletes.map((id): BatchOp => (b) => b.delete(characterRef(uid, id))),
+  ];
+  // Metadaten nur bei Änderung schreiben (spart einen Write pro Charakter-Änderung).
+  if (diff.meta) {
+    ops.push((b) => b.set(metaRef(uid), { version: 1, activeId: diff.activeId, updatedAt: Date.now() }, { merge: true }));
+  }
+  await commitInBatches(db, ops);
 }

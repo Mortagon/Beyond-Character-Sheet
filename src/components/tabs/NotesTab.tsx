@@ -4,22 +4,22 @@ import { useSheet } from '../../context';
 import type { Faction, Trait } from '../../types';
 import { TRAIT_PRESETS } from '../../data/presets';
 import { CHARACTER_QUESTIONS } from '../../data/rules';
-import { newTrait, traitFromPreset, uid } from '../../logic/character';
+import { newTrait, patchById, traitFromPreset, uid } from '../../logic/character';
 import { Btn, ConfirmDelete, EmptyHint, Field, NumInput, Panel, Pips, Select, Stepper, TextArea, TextInput, cx } from '../ui';
+
+const TRAIT_KINDS = ['Vorteil', 'Nachteil'] as const;
+const PRO_PRESETS = TRAIT_PRESETS.filter((p) => p.kind === 'Vorteil');
+const CON_PRESETS = TRAIT_PRESETS.filter((p) => p.kind === 'Nachteil');
 
 function TraitRow({ t }: { t: Trait }) {
   const { update } = useSheet();
   const [edit, setEdit] = useState(false);
-  const set = (recipe: (x: Trait) => void) =>
-    update((c) => {
-      const x = c.traits.find((y) => y.id === t.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Trait) => void) => update((c) => patchById(c.traits, t.id, recipe));
   const isPro = t.kind === 'Vorteil';
   return (
     <div className={cx('rounded-md border bg-[#0f141d] p-2', isPro ? 'border-cyan-500/30' : 'border-red-500/30')}>
       <div className="flex items-start gap-2">
-        <button type="button" onClick={() => setEdit((e) => !e)} className="min-h-8 min-w-0 flex-1 text-left">
+        <button type="button" aria-expanded={edit} onClick={() => setEdit((e) => !e)} className="min-h-8 min-w-0 flex-1 text-left">
           <span className={cx('mr-1.5 text-[9px] font-bold uppercase', isPro ? 'text-cyan-400' : 'text-red-400')}>{t.kind}</span>
           <span className="text-sm font-semibold text-slate-100">{t.name}</span>
           {t.text && !edit && <span className="block text-[11px] leading-snug text-slate-400">{t.text}</span>}
@@ -40,7 +40,7 @@ function TraitRow({ t }: { t: Trait }) {
               <TextInput value={t.name} onChange={(v) => set((x) => void (x.name = v))} />
             </Field>
             <Field label="Art">
-              <Select value={t.kind} options={['Vorteil', 'Nachteil'] as const} onChange={(v) => set((x) => void (x.kind = v))} />
+              <Select value={t.kind} options={TRAIT_KINDS} onChange={(v) => set((x) => void (x.kind = v))} />
             </Field>
             <Field label="Nutzungen">
               <NumInput value={t.usesMax} min={0} max={20} onChange={(v) => set((x) => void ((x.usesMax = v), (x.usesCur = Math.min(x.usesCur, v))))} />
@@ -58,11 +58,7 @@ function TraitRow({ t }: { t: Trait }) {
 
 function FactionRow({ f }: { f: Faction }) {
   const { update } = useSheet();
-  const set = (recipe: (x: Faction) => void) =>
-    update((c) => {
-      const x = c.factions.find((y) => y.id === f.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Faction) => void) => update((c) => patchById(c.factions, f.id, recipe));
   const tone = f.value > 0 ? 'cyan' : f.value < 0 ? 'red' : 'slate';
   return (
     <div className="flex items-center gap-1.5">
@@ -74,7 +70,7 @@ function FactionRow({ f }: { f: Faction }) {
         <div className="absolute top-0 left-1/2 h-full w-px bg-slate-500" />
         <div
           className={cx('absolute top-0 h-full rounded', f.value >= 0 ? 'left-1/2 bg-cyan-500' : 'right-1/2 bg-red-500')}
-          style={{ width: `${(Math.abs(f.value) / 6) * 50}%` }}
+          style={{ width: `${(Math.min(6, Math.abs(f.value)) / 6) * 50}%` }}
         />
       </div>
       <Stepper size="sm" tone={tone} value={f.value} min={-6} max={6} onChange={(n) => set((x) => void (x.value = n))} />
@@ -101,17 +97,17 @@ export function TraitsPanel() {
       bodyClassName="p-2.5 space-y-2"
     >
       <div className="flex gap-1.5">
-        <select value={preset} onChange={(e) => setPreset(e.target.value)} className="field min-w-0 flex-1 text-sm">
+        <select value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="GRW-Vorteil/Nachteil wählen" className="field min-w-0 flex-1 text-sm">
           <option value="">GRW-Vorteil/Nachteil wählen (S. 90–93)…</option>
           <optgroup label="Vorteile">
-            {TRAIT_PRESETS.filter((p) => p.kind === 'Vorteil').map((p) => (
+            {PRO_PRESETS.map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
               </option>
             ))}
           </optgroup>
           <optgroup label="Nachteile">
-            {TRAIT_PRESETS.filter((p) => p.kind === 'Nachteil').map((p) => (
+            {CON_PRESETS.map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
               </option>

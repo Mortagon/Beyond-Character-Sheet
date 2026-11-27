@@ -1,23 +1,21 @@
+import type { ReactNode } from 'react';
 import { Backpack, Coins, Package, Plus, Shield, Warehouse } from 'lucide-react';
 import { useSheet } from '../../context';
 import type { Item, ItemLocation } from '../../types';
-import { newItem } from '../../logic/character';
+import { newItem, patchById } from '../../logic/character';
 import { effectiveAttr, effectiveBel } from '../../logic/dice';
 import { Btn, ConfirmDelete, EmptyHint, Field, NumInput, Panel, Select, Stepper, TextInput, cx } from '../ui';
 
-const LOCATIONS: { key: ItemLocation; name: string; hint: string; icon: React.ReactNode }[] = [
+const LOCATIONS: { key: ItemLocation; name: string; hint: string; icon: ReactNode }[] = [
   { key: 'bereit', name: 'Bereit / Gürteltasche', hint: 'sofort griffbereit', icon: <Package className="size-4" /> },
   { key: 'rucksack', name: 'Rucksack', hint: 'Zugriff kostet 2 Aktionen', icon: <Backpack className="size-4" /> },
   { key: 'lager', name: 'Lager', hint: 'Schiff, Unterkunft, Depot', icon: <Warehouse className="size-4" /> },
 ];
+const LOCATION_OPTIONS = LOCATIONS.map((l) => ({ value: l.key, label: l.name }));
 
 function ItemRow({ it }: { it: Item }) {
   const { update } = useSheet();
-  const set = (recipe: (x: Item) => void) =>
-    update((c) => {
-      const x = c.items.find((y) => y.id === it.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Item) => void) => update((c) => patchById(c.items, it.id, recipe));
   return (
     <div className={cx('space-y-1.5 rounded-md border bg-[#0f141d] p-2', it.consumable && it.qty <= 0 ? 'border-red-500/50' : 'border-slate-700/60')}>
       <div className="flex items-center gap-1.5">
@@ -36,6 +34,7 @@ function ItemRow({ it }: { it: Item }) {
         <button
           type="button"
           onClick={() => set((x) => void (x.consumable = !x.consumable))}
+          aria-pressed={it.consumable}
           className={cx(
             'min-h-8 rounded border px-2 text-[10px] font-bold uppercase',
             it.consumable ? 'border-amber-500/60 bg-amber-500/10 text-amber-300' : 'border-slate-700 text-slate-500',
@@ -45,7 +44,7 @@ function ItemRow({ it }: { it: Item }) {
         </button>
         <Select
           value={it.location}
-          options={LOCATIONS.map((l) => ({ value: l.key, label: l.name }))}
+          options={LOCATION_OPTIONS}
           onChange={(v) => set((x) => void (x.location = v))}
           className="h-8 min-h-8 py-0 text-xs"
         />
@@ -97,7 +96,10 @@ export function ArmorPanel() {
           <div className="flex items-center gap-1">
             <Stepper size="sm" tone="cyan" value={a.lifeSupportCur} min={0} max={Math.max(a.lifeSupportMax, 0)} onChange={(v) => update((c) => void (c.armor.lifeSupportCur = v))} />
             <span className="font-mono text-xs text-slate-500">/</span>
-            <NumInput value={a.lifeSupportMax} min={0} onChange={(v) => update((c) => void (c.armor.lifeSupportMax = v))} className="h-8 min-h-8 w-11 text-xs" />
+            <NumInput
+              value={a.lifeSupportMax}
+              min={0}
+              onChange={(v) => update((c) => void ((c.armor.lifeSupportMax = v), (c.armor.lifeSupportCur = Math.min(c.armor.lifeSupportCur, v))))} className="h-8 min-h-8 w-11 text-xs" />
           </div>
         </Field>
         <Field label="Schild (Modell)">

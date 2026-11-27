@@ -9,6 +9,8 @@ export function AttributesPanel() {
   const { char, update, probe, setProbe } = useSheet();
   const [edit, setEdit] = useState(false);
   const list = ATTRS.filter((a) => a.key !== 'PSI' || char.psiEnabled);
+  const effStr = effectiveAttr(char, 'STR');
+  const effKon = effectiveAttr(char, 'KON');
 
   return (
     <Panel
@@ -65,7 +67,21 @@ export function AttributesPanel() {
                     </div>
                   )}
                 </button>
-                <Stepper size="sm" value={a.value} min={0} max={20} tone="amber" onChange={(n) => update((c) => void (c.attributes[meta.key].value = n))} />
+                <Stepper
+                  size="sm"
+                  value={a.value}
+                  min={0}
+                  max={20}
+                  tone="amber"
+                  onChange={(n) =>
+                    update((c) => {
+                      const attr = c.attributes[meta.key];
+                      attr.value = n;
+                      // Anstrengung kann nie höher sein als der Basiswert
+                      attr.spentEffort = Math.min(attr.spentEffort, n);
+                    })
+                  }
+                />
               </div>
 
               {/* Abgeleitetes Attribut + Anstrengung */}
@@ -132,8 +148,8 @@ export function AttributesPanel() {
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
         <span>Tippe auf ein Attribut oder Abgeleitetes Attribut, um den Würfelpool ins HUD zu laden.</span>
         <span>
-          Tragkraft: <b className="font-mono text-slate-300">{effectiveAttr(char, 'STR') * 10} kg</b> · Dauerlauf:{' '}
-          <b className="font-mono text-slate-300">{effectiveAttr(char, 'KON') * 10} min</b>
+          Tragkraft: <b className="font-mono text-slate-300">{effStr * 10} kg</b> · Dauerlauf:{' '}
+          <b className="font-mono text-slate-300">{effKon * 10} min</b>
         </span>
       </div>
     </Panel>

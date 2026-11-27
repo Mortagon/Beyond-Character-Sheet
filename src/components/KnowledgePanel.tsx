@@ -3,7 +3,7 @@ import { BookOpen, Pencil, PencilOff, Plus } from 'lucide-react';
 import { isSameProbe, useSheet } from '../context';
 import type { KnowledgeSkill } from '../types';
 import { KNOWLEDGE_CATEGORIES, KNOWLEDGE_PRESETS } from '../data/rules';
-import { newKnowledge } from '../logic/character';
+import { newKnowledge, patchById } from '../logic/character';
 import { quickPool } from '../logic/dice';
 import { Btn, ConfirmDelete, DiceBadges, EmptyHint, Field, ModInputs, Panel, Select, Stepper, TextInput, cx } from './ui';
 
@@ -20,11 +20,7 @@ function KnowledgeRow({ k }: { k: KnowledgeSkill }) {
   const [edit, setEdit] = useState(false);
   const pool = quickPool(char, { type: 'knowledge', id: k.id })!;
   const active = isSameProbe(probe, { type: 'knowledge', id: k.id });
-  const set = (recipe: (x: KnowledgeSkill) => void) =>
-    update((c) => {
-      const x = c.knowledge.find((y) => y.id === k.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: KnowledgeSkill) => void) => update((c) => patchById(c.knowledge, k.id, recipe));
   return (
     <div className={cx('rounded-md border bg-[#0f141d]', active ? 'focus-ring border-amber-500/60' : 'border-slate-700/60')}>
       <div className="flex items-center gap-1.5 p-1">

@@ -18,7 +18,7 @@ export function ThemeTransition({
       role="status"
       aria-live="polite"
       className={cx(
-        'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-300',
+        'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden',
         toLight ? 'bg-slate-100 text-slate-900' : 'bg-[#0b0e14] text-slate-100',
         'animate-[beyondFade_950ms_ease-in-out_forwards]',
       )}

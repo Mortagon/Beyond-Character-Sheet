@@ -3,18 +3,14 @@ import { ChevronDown, ChevronRight, Pencil, PencilOff, Plus, Zap } from 'lucide-
 import { useSheet } from '../context';
 import type { Technique } from '../types';
 import { TECHNIQUE_PRESETS } from '../data/presets';
-import { newTechnique, techniqueFromPreset } from '../logic/character';
+import { newTechnique, patchById, techniqueFromPreset } from '../logic/character';
 import { Btn, ConfirmDelete, EmptyHint, Field, NumInput, Panel, Pips, TextArea, TextInput, cx } from './ui';
 
 function TechniqueCard({ t }: { t: Technique }) {
   const { update } = useSheet();
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
-  const set = (recipe: (x: Technique) => void) =>
-    update((c) => {
-      const x = c.techniques.find((y) => y.id === t.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Technique) => void) => update((c) => patchById(c.techniques, t.id, recipe));
   return (
     <div className="rounded-md border border-slate-700/60 bg-[#0f141d]">
       <div className="flex items-start gap-1.5 p-1.5">

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { AlertTriangle, Bot, ChevronDown, ChevronRight, Cpu, Gem, Plus, Terminal } from 'lucide-react';
 import { useSheet } from '../../context';
-import type { Companion, CompanionType, CyberEntry, CyberSlot, Tracker } from '../../types';
+import type { Companion, CompanionType, CyberEntry, CyberSlot, Resource, Tracker } from '../../types';
 import { CYBER_SLOTS, RESOURCE_PRESETS } from '../../data/rules';
-import { newCompanion, uid } from '../../logic/character';
-import { chestWoundLpMalus, cyberwareCost } from '../../logic/dice';
-import { Btn, ConfirmDelete, EmptyHint, Field, NumInput, Panel, Select, Stepper, TextArea, TextInput, cx } from '../ui';
+import { newCompanion, patchById, uid } from '../../logic/character';
+import { cyberwareCost, effectiveMaxLp } from '../../logic/dice';
+import { Btn, ConfirmDelete, EmptyHint, Field, NumInput, Panel, Select, Stepper, TextArea, TextInput, cx, type Tone } from '../ui';
 
 const TYPES: CompanionType[] = ['Begleiter', 'Drohne', 'Fahrzeug', 'Raumschiff'];
+const CYBER_KINDS = ['Cyberware', 'Bioware', 'Exoware'] as const;
+const DECK_STATS = ['VS', 'FW', 'SI', 'HW', 'CPU', 'RAM'] as const;
 
 function Bar({ t, tone }: { t: Tracker; tone: string }) {
   const pct = t.max > 0 ? Math.max(0, Math.min(100, (t.cur / t.max) * 100)) : 0;
@@ -27,7 +29,7 @@ function CompTracker({
 }: {
   label: string;
   t: Tracker;
-  tone: 'slate' | 'cyan' | 'amber' | 'red' | 'green';
+  tone: Tone;
   bar: string;
   onChange: (t: Tracker) => void;
 }) {
@@ -49,15 +51,11 @@ function CompTracker({
 function CompanionCard({ cp }: { cp: Companion }) {
   const { update } = useSheet();
   const [open, setOpen] = useState(true);
-  const set = (recipe: (x: Companion) => void) =>
-    update((c) => {
-      const x = c.companions.find((y) => y.id === cp.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Companion) => void) => update((c) => patchById(c.companions, cp.id, recipe));
   return (
     <div className="rounded-md border border-slate-700/60 bg-[#0f141d]">
       <div className="flex items-center gap-2 p-2">
-        <button type="button" onClick={() => setOpen((o) => !o)} className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left">
+        <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left">
           {open ? <ChevronDown className="size-4 text-slate-500" /> : <ChevronRight className="size-4 text-slate-500" />}
           <Bot className="size-4 text-cyan-400" />
           <span className="truncate text-sm font-bold text-slate-100">{cp.name}</span>
@@ -125,16 +123,12 @@ function CompanionCard({ cp }: { cp: Companion }) {
 
 function CyberRow({ e, slot }: { e: CyberEntry; slot: CyberSlot }) {
   const { update } = useSheet();
-  const set = (recipe: (x: CyberEntry) => void) =>
-    update((c) => {
-      const x = c.cyberware[slot].find((y) => y.id === e.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: CyberEntry) => void) => update((c) => patchById(c.cyberware[slot], e.id, recipe));
   return (
     <div className="space-y-1.5 rounded border border-slate-800 bg-slate-950/40 p-2">
       <div className="grid grid-cols-[1fr_auto_auto] gap-1.5">
         <TextInput value={e.name} onChange={(v) => set((x) => void (x.name = v))} placeholder="Name" />
-        <Select value={e.kind} options={['Cyberware', 'Bioware', 'Exoware'] as const} onChange={(v) => set((x) => void (x.kind = v))} />
+        <Select value={e.kind} options={CYBER_KINDS} onChange={(v) => set((x) => void (x.kind = v))} />
         <label className="flex items-center gap-1" title="Cyberwarekosten">
           <span className="text-[10px] font-bold text-red-400">K</span>
           <NumInput value={e.cost} min={0} onChange={(v) => set((x) => void (x.cost = v))} className="w-11" />
@@ -173,7 +167,7 @@ export function CompanionsPanel() {
 export function CyberwareDeckPanel() {
   const { char, update } = useSheet();
   const cost = cyberwareCost(char);
-  const maxLp = Math.max(0, char.vitals.lp.max - chestWoundLpMalus(char));
+  const maxLp = effectiveMaxLp(char);
   const over = cost > maxLp;
   const deck = char.cyberdeck;
 
@@ -218,7 +212,7 @@ export function CyberwareDeckPanel() {
           <TextInput value={deck.name} onChange={(v) => update((c) => void (c.cyberdeck.name = v))} placeholder="Cyberdeck-Modell" />
         </Field>
         <div className="grid grid-cols-6 gap-1.5">
-          {(['VS', 'FW', 'SI', 'HW', 'CPU', 'RAM'] as const).map((k) => (
+          {DECK_STATS.map((k) => (
             <Field key={k} label={k}>
               <NumInput value={deck[k]} min={0} onChange={(v) => update((c) => void (c.cyberdeck[k] = v))} className="w-full text-cyan-300" />
             </Field>
@@ -226,6 +220,31 @@ export function CyberwareDeckPanel() {
         </div>
         <TextArea rows={2} value={deck.notes} onChange={(v) => update((c) => void (c.cyberdeck.notes = v))} placeholder="Programme, Notizen…" />
       </Panel>
+    </div>
+  );
+}
+
+function ResourceRow({ r }: { r: Resource }) {
+  const { update } = useSheet();
+  const set = (recipe: (x: Resource) => void) => update((c) => patchById(c.resources, r.id, recipe));
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border border-slate-700/60 bg-[#0f141d] p-1.5">
+      <TextInput value={r.name} onChange={(v) => set((x) => void (x.name = v))} className="min-w-0 flex-1" />
+      {/* max = 0 bedeutet „ohne Obergrenze“ */}
+      <Stepper size="sm" tone="amber" value={r.cur} min={0} max={r.max > 0 ? r.max : 999} onChange={(n) => set((x) => void (x.cur = n))} />
+      <span className="font-mono text-xs text-slate-500">/</span>
+      <NumInput
+        value={r.max}
+        min={0}
+        onChange={(n) =>
+          set((x) => {
+            x.max = n;
+            if (n > 0) x.cur = Math.min(x.cur, n);
+          })
+        }
+        className="h-8 min-h-8 w-11 text-xs"
+      />
+      <ConfirmDelete label="×" onConfirm={() => update((c) => void (c.resources = c.resources.filter((x) => x.id !== r.id)))} />
     </div>
   );
 }
@@ -243,24 +262,7 @@ export function SpecialResourcesPanel() {
       </div>
       {char.resources.length === 0 && <EmptyHint>Teer, Blutpunkte, SBS/SHS, Mutagene, KABA-Kristalle, Forschungspunkte …</EmptyHint>}
       {char.resources.map((r) => (
-        <div key={r.id} className="flex items-center gap-1.5 rounded-md border border-slate-700/60 bg-[#0f141d] p-1.5">
-          <TextInput
-            value={r.name}
-            onChange={(v) => update((c) => void (c.resources.find((x) => x.id === r.id)!.name = v))}
-            className="min-w-0 flex-1"
-          />
-          <Stepper
-            size="sm"
-            tone="amber"
-            value={r.cur}
-            min={0}
-            max={r.max > 0 ? r.max : 999}
-            onChange={(n) => update((c) => void (c.resources.find((x) => x.id === r.id)!.cur = n))}
-          />
-          <span className="font-mono text-xs text-slate-500">/</span>
-          <NumInput value={r.max} min={0} onChange={(n) => update((c) => void (c.resources.find((x) => x.id === r.id)!.max = n))} className="h-8 min-h-8 w-11 text-xs" />
-          <ConfirmDelete label="×" onConfirm={() => update((c) => void (c.resources = c.resources.filter((x) => x.id !== r.id)))} />
-        </div>
+        <ResourceRow key={r.id} r={r} />
       ))}
     </Panel>
   );

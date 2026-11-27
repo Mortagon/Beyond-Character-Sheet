@@ -4,7 +4,7 @@ import { isSameProbe, useSheet } from '../context';
 import type { AttrKey, Weapon } from '../types';
 import { WEAPON_PRESETS } from '../data/presets';
 import { ATTR_KEYS } from '../data/rules';
-import { newWeapon, weaponFromPreset } from '../logic/character';
+import { newWeapon, patchById, weaponFromPreset } from '../logic/character';
 import { quickPool } from '../logic/dice';
 import { Btn, ConfirmDelete, DiceBadges, EmptyHint, Field, ModInputs, NumInput, Panel, Pips, Select, TextInput, cx } from './ui';
 
@@ -25,11 +25,7 @@ function WeaponCard({ w }: { w: Weapon }) {
   const pool = quickPool(char, { type: 'weapon', id: w.id });
   const active = isSameProbe(probe, { type: 'weapon', id: w.id });
   const skill = char.skills.find((s) => s.id === w.skillId);
-  const set = (recipe: (x: Weapon) => void) =>
-    update((c) => {
-      const x = c.weapons.find((y) => y.id === w.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Weapon) => void) => update((c) => patchById(c.weapons, w.id, recipe));
 
   return (
     <div className={cx('rounded-md border bg-[#0f141d]/80 transition-shadow', active ? 'focus-ring border-amber-500/60' : 'border-slate-700/60')}>

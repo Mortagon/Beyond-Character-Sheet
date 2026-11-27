@@ -10,3 +10,6 @@ dist
 
 # Regelwerk-PDF (38 MB) lokal behalten, nicht ins Git-Repo pushen
 *.pdf
+
+# Playwright-Smoke-Test-Screenshots
+test-screenshots/

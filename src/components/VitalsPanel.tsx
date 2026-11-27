@@ -1,17 +1,18 @@
 import { Activity, AlertTriangle, Bandage, BedDouble, Brain, HeartPulse, RefreshCcw, Shield, Sparkles } from 'lucide-react';
 import { useSheet } from '../context';
 import { STATUSES, WAP_GRADES, WOUNDS } from '../data/rules';
-import { activeStatusCount, chestWoundLpMalus, effectiveBel, startedWapGrades } from '../logic/dice';
+import { activeStatusCount, chestWoundLpMalus, effectiveBel, effectiveMaxLp, startedWapGrades } from '../logic/dice';
 import { Btn, NumInput, Panel, StatTile, Stepper, cx } from './ui';
 
-function DeathPips({ count, filled, onChange, tone }: { count: number; filled: number; onChange: (n: number) => void; tone: 'green' | 'red' }) {
+function DeathPips({ label, count, filled, onChange, tone }: { label: string; count: number; filled: number; onChange: (n: number) => void; tone: 'green' | 'red' }) {
   return (
     <div className="flex gap-1.5">
       {Array.from({ length: count }, (_, i) => (
         <button
           type="button"
           key={i}
-          aria-label={`${i + 1}`}
+          aria-label={`${label} ${i + 1}`}
+          aria-pressed={i < filled}
           onClick={() => onChange(filled === i + 1 ? i : i + 1)}
           className={cx(
             'size-8 touch-manipulation rounded-full border-2 transition-all',
@@ -31,7 +32,8 @@ function DeathPips({ count, filled, onChange, tone }: { count: number; filled: n
 export function CombatVitalsPanel() {
   const { char, update } = useSheet();
   const v = char.vitals;
-  const maxLp = Math.max(0, v.lp.max - chestWoundLpMalus(char));
+  const maxLp = effectiveMaxLp(char);
+  const chestMalus = chestWoundLpMalus(char);
   const dying = v.lp.cur <= 0;
   const activeCount = activeStatusCount(char);
   const bel = effectiveBel(char);
@@ -79,24 +81,25 @@ export function CombatVitalsPanel() {
         bodyClassName="p-2.5 space-y-3"
       >
         <div className="grid grid-cols-2 gap-2">
-          <StatTile label="Lebenspunkte (LP)" sub={`Max ${maxLp}${chestWoundLpMalus(char) > 0 ? ` (−${chestWoundLpMalus(char)})` : ''}`} tone={dying ? 'red' : 'green'}>
+          <StatTile label="Lebenspunkte (LP)" sub={`Max ${maxLp}${chestMalus > 0 ? ` (−${chestMalus})` : ''}`} tone={dying ? 'red' : 'green'}>
             <Stepper
               size="sm"
               tone={dying ? 'red' : v.lp.cur < maxLp / 2 ? 'amber' : 'green'}
               value={v.lp.cur}
               min={-99}
               max={maxLp}
+              ariaLabel="Lebenspunkte"
               onChange={(n) => update((c) => void (c.vitals.lp.cur = n))}
             />
             <NumInput value={v.lp.max} min={1} onChange={(n) => update((c) => void (c.vitals.lp.max = n))} title="Max LP" className="ml-auto h-8 min-h-8 w-12 text-xs text-slate-400" />
           </StatTile>
 
           <StatTile label="Temporäre LP" sub="Zähigkeit / Bonus">
-            <Stepper size="sm" value={v.tempLp} min={0} onChange={(n) => update((c) => void (c.vitals.tempLp = n))} />
+            <Stepper size="sm" ariaLabel="Temporäre LP" value={v.tempLp} min={0} onChange={(n) => update((c) => void (c.vitals.tempLp = n))} />
           </StatTile>
 
           <StatTile label="Schilde (SW)" sub={`Max ${v.shields.max}`} tone="cyan">
-            <Stepper size="sm" tone="cyan" value={v.shields.cur} min={0} max={v.shields.max} onChange={(n) => update((c) => void (c.vitals.shields.cur = n))} />
+            <Stepper size="sm" tone="cyan" ariaLabel="Schilde" value={v.shields.cur} min={0} max={v.shields.max} onChange={(n) => update((c) => void (c.vitals.shields.cur = n))} />
             <Btn
               small
               tone="cyan"
@@ -114,26 +117,26 @@ export function CombatVitalsPanel() {
           </StatTile>
 
           <StatTile label="Glückspool / Vorteil" sub="Sitzungs-GlkW" tone="cyan">
-            <Stepper size="sm" tone="cyan" value={v.luckPool.cur} min={0} max={v.luckPool.max} onChange={(n) => update((c) => void (c.vitals.luckPool.cur = n))} />
+            <Stepper size="sm" tone="cyan" ariaLabel="Glückspool" value={v.luckPool.cur} min={0} max={v.luckPool.max} onChange={(n) => update((c) => void (c.vitals.luckPool.cur = n))} />
             <span className="font-mono text-xs text-slate-500">/</span>
-            <NumInput value={v.luckPool.max} min={0} onChange={(n) => update((c) => void (c.vitals.luckPool.max = n))} className="h-8 min-h-8 w-11 text-xs" />
+            <NumInput value={v.luckPool.max} min={0} onChange={(n) => update((c) => void ((c.vitals.luckPool.max = n), (c.vitals.luckPool.cur = Math.min(c.vitals.luckPool.cur, n))))} className="h-8 min-h-8 w-11 text-xs" />
           </StatTile>
 
           <StatTile label="Verteidigung (VW)" sub={`Passiv /2 = ${Math.floor(v.vw / 2)}`}>
-            <Stepper size="sm" value={v.vw} min={0} onChange={(n) => update((c) => void (c.vitals.vw = n))} />
+            <Stepper size="sm" ariaLabel="Verteidigungswert" value={v.vw} min={0} onChange={(n) => update((c) => void (c.vitals.vw = n))} />
           </StatTile>
 
           <StatTile label="Reaktionen (REA)" sub={`Max ${v.reactions.max}`}>
-            <Stepper size="sm" value={v.reactions.cur} min={0} max={v.reactions.max} onChange={(n) => update((c) => void (c.vitals.reactions.cur = n))} />
-            <NumInput value={v.reactions.max} min={0} onChange={(n) => update((c) => void (c.vitals.reactions.max = n))} title="Max REA" className="ml-auto h-8 min-h-8 w-11 text-xs text-slate-400" />
+            <Stepper size="sm" ariaLabel="Reaktionen" value={v.reactions.cur} min={0} max={v.reactions.max} onChange={(n) => update((c) => void (c.vitals.reactions.cur = n))} />
+            <NumInput value={v.reactions.max} min={0} onChange={(n) => update((c) => void ((c.vitals.reactions.max = n), (c.vitals.reactions.cur = Math.min(c.vitals.reactions.cur, n))))} title="Max REA" className="ml-auto h-8 min-h-8 w-11 text-xs text-slate-400" />
           </StatTile>
 
           <StatTile label="Adrenalin (ADR)" tone="amber">
-            <Stepper size="sm" tone="amber" value={v.adr} min={0} max={99} onChange={(n) => update((c) => void (c.vitals.adr = n))} />
+            <Stepper size="sm" tone="amber" ariaLabel="Adrenalin" value={v.adr} min={0} max={99} onChange={(n) => update((c) => void (c.vitals.adr = n))} />
           </StatTile>
 
           <StatTile label="Erschöpfung (ERP)" tone={v.erp > 0 ? 'red' : 'slate'}>
-            <Stepper size="sm" tone={v.erp > 0 ? 'red' : 'slate'} value={v.erp} min={0} max={99} onChange={(n) => update((c) => void (c.vitals.erp = n))} />
+            <Stepper size="sm" tone={v.erp > 0 ? 'red' : 'slate'} ariaLabel="Erschöpfung" value={v.erp} min={0} max={99} onChange={(n) => update((c) => void (c.vitals.erp = n))} />
           </StatTile>
         </div>
 
@@ -189,7 +192,8 @@ export function CombatVitalsPanel() {
                 type="button"
                 key={s.key}
                 title={s.rule}
-                onClick={() => update((c) => void (c.statuses[s.key] = !on))}
+                onClick={() => update((c) => void (c.statuses[s.key] = !c.statuses[s.key]))}
+                aria-pressed={on}
                 className={cx(
                   'min-h-8 touch-manipulation rounded-md border px-2.5 py-1 text-left text-xs font-semibold transition-all',
                   on
@@ -236,11 +240,11 @@ export function DeathWoundsPanel() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-emerald-400">Erfolge</span>
-            <DeathPips count={3} filled={v.deathSuccess} tone="green" onChange={(n) => update((c) => void (c.vitals.deathSuccess = n))} />
+            <DeathPips label="Todeswurf-Erfolg" count={3} filled={v.deathSuccess} tone="green" onChange={(n) => update((c) => void (c.vitals.deathSuccess = n))} />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-red-400">Fehlschläge</span>
-            <DeathPips count={3} filled={v.deathFail} tone="red" onChange={(n) => update((c) => void (c.vitals.deathFail = n))} />
+            <DeathPips label="Todeswurf-Fehlschlag" count={3} filled={v.deathFail} tone="red" onChange={(n) => update((c) => void (c.vitals.deathFail = n))} />
           </div>
         </div>
         {v.deathSuccess >= 3 && <p className="mt-1 text-xs text-emerald-400">Stabilisiert.</p>}
@@ -264,13 +268,14 @@ export function DeathWoundsPanel() {
                 )}
                 {st.count > 0 && w.key === 'Brust' && <span className="font-mono text-xs text-red-400">LP −{st.count}</span>}
                 {st.count > 0 && w.key === 'Intern' && <span className="font-mono text-xs text-red-400">+{st.count} Schaden</span>}
-                <Stepper size="sm" tone={st.count > 0 ? 'red' : 'slate'} value={st.count} min={0} max={9} onChange={(n) => update((c) => void (c.wounds[w.key].count = n))} />
+                <Stepper size="sm" tone={st.count > 0 ? 'red' : 'slate'} ariaLabel={`Wunden ${w.key}`} value={st.count} min={0} max={9} onChange={(n) => update((c) => void (c.wounds[w.key].count = n))} />
               </div>
               <div className="mt-1.5 flex items-center gap-2">
                 <p className="min-w-0 flex-1 text-[11px] leading-snug text-slate-500">{w.rule}</p>
                 <button
                   type="button"
-                  onClick={() => update((c) => void (c.wounds[w.key].crippled = !st.crippled))}
+                  onClick={() => update((c) => void (c.wounds[w.key].crippled = !c.wounds[w.key].crippled))}
+                  aria-pressed={st.crippled}
                   className={cx(
                     'min-h-8 shrink-0 rounded border px-2 text-[10px] font-bold uppercase',
                     st.crippled ? 'border-red-400 bg-red-500/25 text-red-200' : 'border-slate-700 text-slate-500',
@@ -299,7 +304,7 @@ export function WapPanel() {
     <Panel
       title="Wahnsinnspunkte (WAP)"
       icon={<Brain className="size-4 text-red-400" />}
-      actions={<Stepper size="sm" tone="red" value={v.wap} min={0} max={36} onChange={(n) => update((c) => void (c.vitals.wap = n))} />}
+      actions={<Stepper size="sm" tone="red" ariaLabel="Wahnsinnspunkte" value={v.wap} min={0} max={36} onChange={(n) => update((c) => void (c.vitals.wap = n))} />}
       bodyClassName="p-2.5 space-y-2"
     >
       <div className="grid grid-cols-6 gap-1.5">
@@ -317,6 +322,7 @@ export function WapPanel() {
                     type="button"
                     key={n}
                     aria-label={`WAP ${n}`}
+                    aria-pressed={n <= v.wap}
                     onClick={() => update((c) => void (c.vitals.wap = c.vitals.wap === n ? n - 1 : n))}
                     className={cx('aspect-square min-h-5 touch-manipulation rounded-[2px] border', n <= v.wap ? 'border-red-300 bg-red-500' : 'border-slate-700 bg-slate-900')}
                   />

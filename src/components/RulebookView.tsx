@@ -1,40 +1,39 @@
 import { useMemo, useState } from 'react';
 import { BookOpen, ChevronRight, Search, X } from 'lucide-react';
-import { GRW_CHAPTERS, type CodexChapter, type CodexSection } from '../data/grwCodex';
+import { GRW_CHAPTERS, type CodexSection } from '../data/grwCodex';
 import { Panel, cx } from './ui';
 
+/** Suchindex einmalig beim Laden des Moduls aufbauen statt bei jedem Tastendruck für jeden Abschnitt neu. */
+const SEARCH_INDEX = new Map<CodexSection, string>(
+  GRW_CHAPTERS.flatMap((c) =>
+    c.sections.map((s): [CodexSection, string] => [
+      s,
+      [s.title, s.page, s.summary, ...s.tags, ...(s.bullets ?? []), ...(s.table ? [...s.table.headers, ...s.table.rows.flat()] : [])]
+        .join(' ')
+        .toLowerCase(),
+    ]),
+  ),
+);
+
 function matchesQuery(s: CodexSection, q: string): boolean {
-  if (!q) return true;
-  const hay = [
-    s.title,
-    s.page,
-    s.summary,
-    ...s.tags,
-    ...(s.bullets ?? []),
-    ...(s.table ? [...s.table.headers, ...s.table.rows.flat()] : []),
-  ]
-    .join(' ')
-    .toLowerCase();
-  return hay.includes(q);
+  return !q || (SEARCH_INDEX.get(s)?.includes(q) ?? false);
 }
 
 export function RulebookView() {
   const [chapterId, setChapterId] = useState<string>(GRW_CHAPTERS[0].id);
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
+  const activeChapter = GRW_CHAPTERS.find((c) => c.id === chapterId) ?? GRW_CHAPTERS[0];
 
   const filteredChapters = useMemo(() => {
-    if (!q) {
-      const active = GRW_CHAPTERS.find((c) => c.id === chapterId) ?? GRW_CHAPTERS[0];
-      return [{ chapter: active, sections: active.sections }];
-    }
+    if (!q) return [{ chapter: activeChapter, sections: activeChapter.sections }];
     return GRW_CHAPTERS.map((chapter) => ({
       chapter,
       sections: chapter.sections.filter((s) => matchesQuery(s, q)),
     })).filter((entry) => entry.sections.length > 0);
-  }, [chapterId, q]);
+  }, [activeChapter, q]);
 
-  const totalHits = useMemo(() => filteredChapters.reduce((n, c) => n + c.sections.length, 0), [filteredChapters]);
+  const totalHits = filteredChapters.reduce((n, c) => n + c.sections.length, 0);
 
   const scrollToSection = (id: string) => {
     document.getElementById(`grw-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -51,6 +50,7 @@ export function RulebookView() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Regel, Effekt, Waffe, Archetyp suchen…"
+              aria-label="Regelwerk durchsuchen"
               className="field w-full pr-8 pl-8 text-sm placeholder:text-slate-600"
             />
             {query && (
@@ -71,13 +71,14 @@ export function RulebookView() {
             </div>
           ) : (
             <div className="space-y-1">
-              {GRW_CHAPTERS.map((c: CodexChapter) => {
+              {GRW_CHAPTERS.map((c) => {
                 const active = c.id === chapterId;
                 return (
                   <button
                     type="button"
                     key={c.id}
                     onClick={() => setChapterId(c.id)}
+                    aria-current={active ? 'true' : undefined}
                     className={cx(
                       'flex w-full touch-manipulation items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors',
                       active
@@ -104,7 +105,7 @@ export function RulebookView() {
             <div className="border-t border-slate-800 pt-2">
               <div className="label mb-1.5 px-1">Abschnitte in diesem Kapitel</div>
               <div className="flex flex-wrap gap-1">
-                {(GRW_CHAPTERS.find((c) => c.id === chapterId) ?? GRW_CHAPTERS[0]).sections.map((s) => (
+                {activeChapter.sections.map((s) => (
                   <button
                     type="button"
                     key={s.id}

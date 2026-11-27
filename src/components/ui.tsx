@@ -28,18 +28,23 @@ export function Panel({
   bodyClassName?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const heading = (
+    <>
+      {icon && <span className="text-amber-400">{icon}</span>}
+      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-200">{title}</h2>
+    </>
+  );
   return (
     <section className={cx('panel', className)}>
       <header className="flex min-h-11 items-center gap-2 border-b border-slate-700/60 px-3 py-1.5">
-        <button
-          type="button"
-          className={cx('flex min-h-8 flex-1 items-center gap-2 text-left', !collapsible && 'cursor-default')}
-          onClick={() => collapsible && setOpen((o) => !o)}
-        >
-          {collapsible && (open ? <ChevronDown className="size-4 text-slate-500" /> : <ChevronRight className="size-4 text-slate-500" />)}
-          {icon && <span className="text-amber-400">{icon}</span>}
-          <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-200">{title}</h2>
-        </button>
+        {collapsible ? (
+          <button type="button" aria-expanded={open} className="flex min-h-8 flex-1 items-center gap-2 text-left" onClick={() => setOpen((o) => !o)}>
+            {open ? <ChevronDown className="size-4 text-slate-500" /> : <ChevronRight className="size-4 text-slate-500" />}
+            {heading}
+          </button>
+        ) : (
+          <div className="flex min-h-8 flex-1 items-center gap-2">{heading}</div>
+        )}
         {actions && <div className="flex items-center gap-1.5">{actions}</div>}
       </header>
       {open && <div className={cx('p-3', bodyClassName)}>{children}</div>}
@@ -48,6 +53,14 @@ export function Panel({
 }
 
 /* ---------- Einheitliche Stat-Kachel ---------- */
+
+const statTileBorder: Record<Tone, string> = {
+  slate: 'border-slate-700/70',
+  amber: 'border-amber-500/45',
+  cyan: 'border-cyan-500/45',
+  red: 'border-red-500/55',
+  green: 'border-emerald-500/45',
+};
 
 export function StatTile({
   label,
@@ -62,15 +75,8 @@ export function StatTile({
   children: ReactNode;
   className?: string;
 }) {
-  const border: Record<Tone, string> = {
-    slate: 'border-slate-700/70',
-    amber: 'border-amber-500/45',
-    cyan: 'border-cyan-500/45',
-    red: 'border-red-500/55',
-    green: 'border-emerald-500/45',
-  };
   return (
-    <div className={cx('flex flex-col justify-between gap-1.5 rounded-md border bg-[#0f141d] p-2', border[tone], className)}>
+    <div className={cx('flex flex-col justify-between gap-1.5 rounded-md border bg-[#0f141d] p-2', statTileBorder[tone], className)}>
       <div className="flex items-baseline justify-between gap-1">
         <span className="label">{label}</span>
         {sub && <span className="font-mono text-[10px] text-slate-500">{sub}</span>}
@@ -172,7 +178,6 @@ export function NumInput({
   max = 999999,
   className,
   title,
-  step = 1,
   float = false,
   bare = false,
 }: {
@@ -182,7 +187,6 @@ export function NumInput({
   max?: number;
   className?: string;
   title?: string;
-  step?: number;
   float?: boolean;
   bare?: boolean;
 }) {
@@ -201,7 +205,7 @@ export function NumInput({
       type="text"
       inputMode={float ? 'decimal' : 'numeric'}
       title={title}
-      step={step}
+      aria-label={title}
       value={draft}
       onClick={(e) => e.stopPropagation()}
       onFocus={(e) => e.currentTarget.select()}
@@ -309,6 +313,22 @@ export function Field({ label, children, className }: { label: string; children:
 
 /* ---------- Einheitlicher Segmented Stepper ---------- */
 
+const stepperBorder: Record<Tone, string> = {
+  slate: 'border-slate-700/80',
+  amber: 'border-amber-500/45',
+  cyan: 'border-cyan-500/45',
+  red: 'border-red-500/50',
+  green: 'border-emerald-500/45',
+};
+
+const stepperValueColor: Record<Tone, string> = {
+  slate: 'text-slate-100',
+  amber: 'text-amber-300',
+  cyan: 'text-cyan-300',
+  red: 'text-red-300',
+  green: 'text-emerald-300',
+};
+
 export function Stepper({
   value,
   onChange,
@@ -318,6 +338,7 @@ export function Stepper({
   tone = 'slate',
   className,
   editable = true,
+  ariaLabel = 'Wert',
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -327,37 +348,25 @@ export function Stepper({
   tone?: Tone;
   className?: string;
   editable?: boolean;
+  ariaLabel?: string;
 }) {
   const set = (v: number) => onChange(Math.min(max, Math.max(min, v)));
-  const h = size === 'sm' ? 'h-8' : 'h-9';
-  const btnW = size === 'sm' ? 'w-8' : 'w-9';
-  const borderTone: Record<Tone, string> = {
-    slate: 'border-slate-700/80',
-    amber: 'border-amber-500/45',
-    cyan: 'border-cyan-500/45',
-    red: 'border-red-500/50',
-    green: 'border-emerald-500/45',
-  };
-  const valueColor: Record<Tone, string> = {
-    slate: 'text-slate-100',
-    amber: 'text-amber-300',
-    cyan: 'text-cyan-300',
-    red: 'text-red-300',
-    green: 'text-emerald-300',
-  };
+  // Touch-Ziele laut Vorgabe mind. 36×36 px (Höhe inkl. 1px-Rahmen oben/unten)
+  const h = size === 'sm' ? 'h-[38px]' : 'h-[42px]';
+  const btnW = size === 'sm' ? 'w-9' : 'w-10';
   return (
     <div
       className={cx(
         'inline-flex shrink-0 items-stretch overflow-hidden rounded-md border bg-[#0b0e14]',
         h,
-        borderTone[tone],
+        stepperBorder[tone],
         className,
       )}
       onClick={(e) => e.stopPropagation()}
     >
       <button
         type="button"
-        aria-label="verringern"
+        aria-label={`${ariaLabel} verringern`}
         onClick={() => set(value - 1)}
         disabled={value <= min}
         className={cx(
@@ -370,18 +379,19 @@ export function Stepper({
       {editable ? (
         <NumInput
           bare
+          title={ariaLabel}
           value={value}
           onChange={set}
           min={min}
           max={max}
-          className={cx(size === 'sm' ? 'w-9 text-sm' : 'w-11 text-base', 'h-full font-bold', valueColor[tone])}
+          className={cx(size === 'sm' ? 'w-9 text-sm' : 'w-11 text-base', 'h-full font-bold', stepperValueColor[tone])}
         />
       ) : (
-        <span className={cx('inline-flex w-9 items-center justify-center font-mono text-sm font-bold tabular-nums', valueColor[tone])}>{value}</span>
+        <span className={cx('inline-flex w-9 items-center justify-center font-mono text-sm font-bold tabular-nums', stepperValueColor[tone])}>{value}</span>
       )}
       <button
         type="button"
-        aria-label="erhöhen"
+        aria-label={`${ariaLabel} erhöhen`}
         onClick={() => set(value + 1)}
         disabled={value >= max}
         className={cx(
@@ -395,39 +405,15 @@ export function Stepper({
   );
 }
 
-/** Aktuell / Max Tracker mit einheitlichem Segmented Stepper */
-export function TrackerControl({
-  label,
-  cur,
-  max,
-  onCur,
-  onMax,
-  tone = 'slate',
-  allowOver = false,
-  min = 0,
-}: {
-  label: string;
-  cur: number;
-  max: number;
-  onCur: (v: number) => void;
-  onMax: (v: number) => void;
-  tone?: Tone;
-  allowOver?: boolean;
-  min?: number;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="label">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <Stepper value={cur} onChange={onCur} min={min} max={allowOver ? 9999 : Math.max(max, 0)} size="sm" tone={tone} />
-        <span className="font-mono text-xs text-slate-500">/</span>
-        <NumInput value={max} onChange={onMax} min={0} className="h-8 min-h-8 w-11 text-xs" />
-      </div>
-    </div>
-  );
-}
-
 /* ---------- Pips ---------- */
+
+const pipOn: Record<Tone, string> = {
+  amber: 'bg-amber-400 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.5)]',
+  cyan: 'bg-cyan-400 border-cyan-300 shadow-[0_0_6px_rgba(6,182,212,0.5)]',
+  red: 'bg-red-500 border-red-400 shadow-[0_0_6px_rgba(239,68,68,0.5)]',
+  green: 'bg-emerald-400 border-emerald-300',
+  slate: 'bg-slate-200 border-white',
+};
 
 export function Pips({
   total,
@@ -440,18 +426,11 @@ export function Pips({
   total: number;
   filled: number;
   onChange: (v: number) => void;
-  tone?: 'amber' | 'cyan' | 'red' | 'green' | 'slate';
+  tone?: Tone;
   size?: 'sm' | 'md';
   max?: number;
 }) {
-  const on: Record<string, string> = {
-    amber: 'bg-amber-400 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.5)]',
-    cyan: 'bg-cyan-400 border-cyan-300 shadow-[0_0_6px_rgba(6,182,212,0.5)]',
-    red: 'bg-red-500 border-red-400 shadow-[0_0_6px_rgba(239,68,68,0.5)]',
-    green: 'bg-emerald-400 border-emerald-300',
-    slate: 'bg-slate-200 border-white',
-  };
-  const n = Math.min(total, max);
+  const n = Math.max(0, Math.min(total, max));
   const dim = size === 'sm' ? 'size-5' : 'size-7';
   return (
     <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
@@ -459,12 +438,13 @@ export function Pips({
         <button
           type="button"
           key={i}
-          aria-label={`${i + 1}`}
+          aria-label={`${i + 1} von ${total}`}
+          aria-pressed={i < filled}
           onClick={() => onChange(filled === i + 1 ? i : i + 1)}
           className={cx(
             dim,
             'touch-manipulation rounded-sm border transition-all',
-            i < filled ? on[tone] : 'border-slate-600 bg-slate-900/80',
+            i < filled ? pipOn[tone] : 'border-slate-600 bg-slate-900/80',
           )}
         />
       ))}

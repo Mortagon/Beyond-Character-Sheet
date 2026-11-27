@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BookOpen,
@@ -25,7 +25,7 @@ import { BeyondEmblem } from './BeyondLogo';
 import type { ThemeMode } from './ThemeTransition';
 import type { CloudSyncState } from '../logic/firebase';
 import { Btn, IconBtn, cx } from './ui';
-import { activeStatusCount, chestWoundLpMalus } from '../logic/dice';
+import { activeStatusCount, effectiveMaxLp } from '../logic/dice';
 
 interface HeaderProps {
   characters: Character[];
@@ -53,9 +53,19 @@ export function Header(p: HeaderProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const v = char.vitals;
-  const maxLp = Math.max(0, v.lp.max - chestWoundLpMalus(char));
+  const maxLp = effectiveMaxLp(char);
   const dying = v.lp.cur <= 0;
   const activeCount = activeStatusCount(char);
+
+  // Lösch-Bestätigung nach 3,5 s automatisch entschärfen (Timer wird bei Unmount/Neustart sauber aufgeräumt)
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(false), 3500);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
+
+  // Scharf geschaltete Bestätigung nicht auf einen anderen Charakter übertragen
+  useEffect(() => setConfirmDelete(false), [p.activeId]);
 
   return (
     <header className="shrink-0 border-b border-slate-700/70 bg-[#0f141d]/95 px-3 py-2 backdrop-blur">
@@ -150,6 +160,7 @@ export function Header(p: HeaderProps) {
           {confirmDelete ? (
             <Btn
               tone="red"
+              title="Löschen bestätigen"
               onClick={() => {
                 setConfirmDelete(false);
                 p.onDelete();
@@ -162,10 +173,7 @@ export function Header(p: HeaderProps) {
               icon={<Trash2 className="size-4" />}
               title="Charakter löschen"
               tone="red"
-              onClick={() => {
-                setConfirmDelete(true);
-                setTimeout(() => setConfirmDelete(false), 3500);
-              }}
+              onClick={() => setConfirmDelete(true)}
             />
           )}
 
@@ -192,6 +200,10 @@ export function Header(p: HeaderProps) {
                 {p.user.displayName || p.user.email}
               </span>
               <span
+                role="status"
+                aria-label={
+                  p.cloudSync === 'synced' ? 'Mit Firestore synchronisiert' : p.cloudSync === 'syncing' ? 'Synchronisiere mit Firestore…' : 'Cloud-Synchronisationsfehler'
+                }
                 title={
                   p.cloudSync === 'synced'
                     ? 'Mit Firestore synchronisiert'

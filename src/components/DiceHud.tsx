@@ -8,12 +8,12 @@ import { Btn, DIE_STYLES, cx } from './ui';
 function MiniStep({ label, value, onChange, tone }: { label: string; value: number; onChange: (v: number) => void; tone: 'cyan' | 'red' }) {
   const color = tone === 'cyan' ? 'text-cyan-300 border-cyan-500/45' : 'text-red-300 border-red-500/45';
   return (
-    <div className={cx('inline-flex h-8 items-stretch overflow-hidden rounded-md border bg-[#0b0e14]', color)}>
+    <div className={cx('inline-flex h-[38px] items-stretch overflow-hidden rounded-md border bg-[#0b0e14]', color)}>
       <button
         type="button"
         aria-label={`${label} verringern`}
         onClick={() => onChange(value - 1)}
-        className="flex w-8 touch-manipulation items-center justify-center border-r border-slate-800 bg-slate-900/60 hover:bg-slate-800 active:bg-slate-700"
+        className="flex w-9 touch-manipulation items-center justify-center border-r border-slate-800 bg-slate-900/60 hover:bg-slate-800 active:bg-slate-700"
       >
         <Minus className="size-3.5" />
       </button>
@@ -25,7 +25,7 @@ function MiniStep({ label, value, onChange, tone }: { label: string; value: numb
         type="button"
         aria-label={`${label} erhöhen`}
         onClick={() => onChange(value + 1)}
-        className="flex w-8 touch-manipulation items-center justify-center border-l border-slate-800 bg-slate-900/60 hover:bg-slate-800 active:bg-slate-700"
+        className="flex w-9 touch-manipulation items-center justify-center border-l border-slate-800 bg-slate-900/60 hover:bg-slate-800 active:bg-slate-700"
       >
         <Plus className="size-3.5" />
       </button>

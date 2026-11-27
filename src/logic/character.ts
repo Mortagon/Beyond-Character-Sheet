@@ -28,6 +28,12 @@ export const clampInt = (v: number, min = -Infinity, max = Infinity): number => 
   return Math.min(max, Math.max(min, n));
 };
 
+/** Wendet `recipe` auf den Listeneintrag mit passender ID an (no-op, falls nicht vorhanden). */
+export function patchById<T extends { id: string }>(list: T[], id: string, recipe: (item: T) => void): void {
+  const item = list.find((x) => x.id === id);
+  if (item) recipe(item);
+}
+
 const newAttr = (value = 1): Attribute => ({ value, spentEffort: 0, gow: 0, glkw: 0, pew: 0 });
 const newDerived = (): DerivedMods => ({ gowOverride: null, glkw: 0, pew: 0 });
 
@@ -271,13 +277,18 @@ function normalizeList<T extends { id: string }>(list: unknown, make: () => T, p
   });
 }
 
+/** Charakter-IDs dienen als Firestore-Dokument-ID (kein `/`, nicht `.`/`..`, nicht `__…__`, begrenzte Länge). */
+function isValidDocId(id: string): boolean {
+  return id.length > 0 && id.length <= 200 && !id.includes('/') && id !== '.' && id !== '..' && !/^__.*__$/.test(id);
+}
+
 /** Robuste Normalisierung für geladene / importierte Daten */
 export function normalizeCharacter(raw: unknown): Character {
   const base = createBlankCharacter();
   if (!isObj(raw)) return base;
   const c = mergeDeep(base, { ...raw, skills: undefined, knowledge: undefined, weapons: undefined });
   c.schema = 1;
-  if (!c.id) c.id = uid('ch');
+  if (!isValidDocId(c.id)) c.id = uid('ch');
   for (const k of ATTR_KEYS) {
     const o = c.derived[k].gowOverride as unknown;
     c.derived[k].gowOverride = typeof o === 'number' && Number.isFinite(o) ? o : null;

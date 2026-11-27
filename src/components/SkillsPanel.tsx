@@ -4,7 +4,7 @@ import { isSameProbe, useSheet } from '../context';
 import type { AttrKey, Skill, SkillCategory } from '../types';
 import { ATTR_KEYS, SKILL_CATEGORIES } from '../data/rules';
 import { quickPool } from '../logic/dice';
-import { uid } from '../logic/character';
+import { patchById, uid } from '../logic/character';
 import { Btn, ConfirmDelete, DiceBadges, EmptyHint, Field, ModInputs, Panel, Select, Stepper, TextInput, cx } from './ui';
 
 function SkillRow({ s }: { s: Skill }) {
@@ -12,11 +12,7 @@ function SkillRow({ s }: { s: Skill }) {
   const [edit, setEdit] = useState(false);
   const pool = quickPool(char, { type: 'skill', id: s.id })!;
   const active = isSameProbe(probe, { type: 'skill', id: s.id });
-  const set = (recipe: (x: Skill) => void) =>
-    update((c) => {
-      const x = c.skills.find((y) => y.id === s.id);
-      if (x) recipe(x);
-    });
+  const set = (recipe: (x: Skill) => void) => update((c) => patchById(c.skills, s.id, recipe));
   const hasMods = s.gow !== 0 || s.glkw !== 0 || s.pew !== 0;
 
   return (
@@ -37,6 +33,7 @@ function SkillRow({ s }: { s: Skill }) {
         <button
           type="button"
           aria-label="Fertigkeit bearbeiten"
+          aria-expanded={edit}
           onClick={() => setEdit((e) => !e)}
           className={cx('flex size-8 shrink-0 items-center justify-center rounded-md', edit ? 'text-amber-300' : 'text-slate-600 hover:text-slate-300')}
         >
@@ -51,7 +48,7 @@ function SkillRow({ s }: { s: Skill }) {
                 <TextInput value={s.name} onChange={(v) => set((x) => void (x.name = v))} />
               </Field>
               <Field label="Attribut">
-                <Select value={s.attr} options={ATTR_KEYS} onChange={(v) => set((x) => void (x.attr = v as AttrKey))} />
+                <Select<AttrKey> value={s.attr} options={ATTR_KEYS} onChange={(v) => set((x) => void (x.attr = v))} />
               </Field>
               <Field label="Kategorie">
                 <Select value={s.category} options={SKILL_CATEGORIES} onChange={(v) => set((x) => void (x.category = v))} />
@@ -82,14 +79,20 @@ export function SkillsPanel() {
   const [cat, setCat] = useState<SkillCategory | 'Alle'>('Alle');
 
   const usedCats = useMemo(() => SKILL_CATEGORIES.filter((c) => char.skills.some((s) => s.category === c)), [char.skills]);
+  // Gewählte Kategorie existiert evtl. nicht mehr (letzte eigene Fertigkeit gelöscht / Charakterwechsel) →
+  // sonst wäre die Liste leer, ohne dass ein Filter-Button zum Zurücksetzen sichtbar ist.
+  const activeCat: SkillCategory | 'Alle' = cat !== 'Alle' && usedCats.includes(cat) ? cat : 'Alle';
+  const needle = q.trim().toLowerCase();
 
-  const filtered = char.skills.filter(
-    (s) =>
-      (!learnedOnly || s.level > 0) &&
-      (cat === 'Alle' || s.category === cat) &&
-      (q.trim() === '' || `${s.name} ${s.spec} ${s.attr}`.toLowerCase().includes(q.trim().toLowerCase())),
-  );
-  const groups = usedCats.map((c) => ({ cat: c, items: filtered.filter((s) => s.category === c) })).filter((g) => g.items.length > 0);
+  const groups = useMemo(() => {
+    const filtered = char.skills.filter(
+      (s) =>
+        (!learnedOnly || s.level > 0) &&
+        (activeCat === 'Alle' || s.category === activeCat) &&
+        (needle === '' || `${s.name} ${s.spec} ${s.attr}`.toLowerCase().includes(needle)),
+    );
+    return usedCats.map((c) => ({ cat: c, items: filtered.filter((s) => s.category === c) })).filter((g) => g.items.length > 0);
+  }, [char.skills, usedCats, learnedOnly, activeCat, needle]);
   const learned = char.skills.filter((s) => s.level > 0).length;
 
   return (
@@ -131,6 +134,7 @@ export function SkillsPanel() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Fertigkeit suchen…"
+              aria-label="Fertigkeit suchen"
               className="field w-full pl-8 text-sm placeholder:text-slate-600"
             />
           </div>
@@ -144,9 +148,10 @@ export function SkillsPanel() {
               type="button"
               key={c}
               onClick={() => setCat(c)}
+              aria-pressed={activeCat === c}
               className={cx(
                 'min-h-8 touch-manipulation rounded border px-2 text-[11px] font-semibold',
-                cat === c ? 'border-amber-500/70 bg-amber-500/15 text-amber-300' : 'border-slate-700/70 text-slate-400 hover:text-slate-200',
+                activeCat === c ? 'border-amber-500/70 bg-amber-500/15 text-amber-300' : 'border-slate-700/70 text-slate-400 hover:text-slate-200',
               )}
             >
               {c}

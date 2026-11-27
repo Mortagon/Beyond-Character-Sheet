@@ -58,6 +58,11 @@ export function chestWoundLpMalus(c: Character): number {
   return c.wounds.Brust?.count ?? 0;
 }
 
+/** Max LP abzüglich Brustwunden-Malus (nie negativ) */
+export function effectiveMaxLp(c: Character): number {
+  return Math.max(0, c.vitals.lp.max - chestWoundLpMalus(c));
+}
+
 export function cyberwareCost(c: Character): number {
   return Object.values(c.cyberware)
     .flat()
